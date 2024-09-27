@@ -22,9 +22,9 @@ struct App {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 enum Mode {
-    Column,
     #[default]
     Row,
+    Column,
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +113,7 @@ impl App {
                 row![
                     text("Drag items around!").width(Fill),
                     pick_list(
-                        [Mode::Column, Mode::Row],
+                        [Mode::Row, Mode::Column],
                         Some(&self.mode),
                         Message::SwitchMode,
                     )

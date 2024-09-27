@@ -232,36 +232,40 @@ where
         layout: Layout<'_>,
         dragged_index: usize,
     ) -> (usize, DropPosition) {
+        let cursor_y = cursor_position.y;
+
         for (i, child_layout) in layout.children().enumerate() {
             let bounds = child_layout.bounds();
+            let y = bounds.y;
+            let height = bounds.height;
 
-            if bounds.contains(cursor_position) {
+            if cursor_y >= y && cursor_y <= y + height {
                 if i == dragged_index {
                     // Cursor is over the dragged item itself
                     return (i, DropPosition::Swap);
                 }
 
-                let thickness = bounds.height.min(bounds.width) / 4.0;
-                let top_threshold = bounds.y + thickness;
-                let bottom_threshold = bounds.y + bounds.height - thickness;
+                let thickness = height / 4.0;
+                let top_threshold = y + thickness;
+                let bottom_threshold = y + height - thickness;
 
-                if cursor_position.y < top_threshold {
-                    // Near the top edge - insert before
+                if cursor_y < top_threshold {
+                    // Near the top edge - insert above
                     return (i, DropPosition::Before);
-                } else if cursor_position.y > bottom_threshold {
-                    // Near the bottom edge - insert after
+                } else if cursor_y > bottom_threshold {
+                    // Near the bottom edge - insert below
                     return (i + 1, DropPosition::After);
                 } else {
                     // Middle area - swap
                     return (i, DropPosition::Swap);
                 }
-            } else if cursor_position.y < bounds.y {
-                // Cursor is before this child
+            } else if cursor_y < y {
+                // Cursor is above this child
                 return (i, DropPosition::Before);
             }
         }
 
-        // Cursor is after all children
+        // Cursor is below all children
         (self.children.len(), DropPosition::After)
     }
 }

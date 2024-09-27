@@ -231,30 +231,34 @@ where
         layout: Layout<'_>,
         dragged_index: usize,
     ) -> (usize, DropPosition) {
+        let cursor_x = cursor_position.x;
+
         for (i, child_layout) in layout.children().enumerate() {
             let bounds = child_layout.bounds();
+            let x = bounds.x;
+            let width = bounds.width;
 
-            if bounds.contains(cursor_position) {
+            if cursor_x >= x && cursor_x <= x + width {
                 if i == dragged_index {
                     // Cursor is over the dragged item itself
                     return (i, DropPosition::Swap);
                 }
 
-                let thickness = bounds.width.min(bounds.height) / 4.0;
-                let left_threshold = bounds.x + thickness;
-                let right_threshold = bounds.x + bounds.width - thickness;
+                let thickness = width / 4.0;
+                let left_threshold = x + thickness;
+                let right_threshold = x + width - thickness;
 
-                if cursor_position.x < left_threshold {
+                if cursor_x < left_threshold {
                     // Near the left edge - insert before
                     return (i, DropPosition::Before);
-                } else if cursor_position.x > right_threshold {
+                } else if cursor_x > right_threshold {
                     // Near the right edge - insert after
                     return (i + 1, DropPosition::After);
                 } else {
                     // Middle area - swap
                     return (i, DropPosition::Swap);
                 }
-            } else if cursor_position.x < bounds.x {
+            } else if cursor_x < x {
                 // Cursor is before this child
                 return (i, DropPosition::Before);
             }
