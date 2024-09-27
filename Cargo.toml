@@ -1,0 +1,12 @@
+[package]
+name = "dragking"
+version = "0.1.0"
+edition = "2021"
+authors = ["Andy Terra <spam@andyterra.com>"]
+description = "A very simple implementation of drag and drop for `iced`'s `Row` and `Column` widgets"
+license = "MIT"
+repository = "https://github.com/airstrike/dragking"
+
+[dependencies]
+iced.version = "0.13"
+iced.features = ["advanced"]
