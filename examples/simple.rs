@@ -101,9 +101,27 @@ impl App {
             Mode::Column => dragking::column(items.collect::<Vec<_>>())
                 .spacing(5)
                 .on_drag(Message::Reorder)
+                .align_x(Center)
                 .into(),
             Mode::Row => dragking::row(items.collect::<Vec<_>>())
                 .spacing(5)
+                // For the row example only, show a totally custom Style
+                .style(|theme| dragking::row::Style {
+                    scale: 1.2,
+                    moved_item_overlay: iced::Color::BLACK
+                        .scale_alpha(0.25)
+                        .into(),
+                    ghost_background: iced::color![170.0, 0.0, 0.0]
+                        .scale_alpha(0.25)
+                        .into(),
+                    ghost_border: iced::Border {
+                        color: iced::Color::TRANSPARENT,
+                        width: 0.0,
+                        radius: 5.0.into(),
+                    },
+                    ..dragking::row::default(theme)
+                })
+                .align_y(Center)
                 .on_drag(Message::Reorder)
                 .into(),
         };
@@ -118,8 +136,13 @@ impl App {
                         Message::SwitchMode,
                     )
                 ],
-                container(drag).padding(20).width(Fill).height(Fill).style(
-                    |_| {
+                container(drag)
+                    .padding(20)
+                    .width(Fill)
+                    .height(Fill)
+                    .align_x(Center)
+                    .align_y(Center)
+                    .style(|_| {
                         container::Style {
                             border: iced::Border {
                                 color: iced::Color::BLACK.scale_alpha(0.2),
@@ -128,8 +151,7 @@ impl App {
                             },
                             ..Default::default()
                         }
-                    }
-                )
+                    })
             ]
             .align_x(Center)
             .spacing(5),

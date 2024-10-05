@@ -208,6 +208,23 @@ where
         }
     }
 
+    /// Sets the style of the [`Column`].
+    #[must_use]
+    pub fn style(mut self, style: impl Fn(&Theme) -> Style + 'a) -> Self
+    where
+        Theme::Class<'a>: From<StyleFn<'a, Theme>>,
+    {
+        self.class = (Box::new(style) as StyleFn<'a, Theme>).into();
+        self
+    }
+
+    /// Sets the style class of the [`Column`].
+    #[must_use]
+    pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
+        self.class = class.into();
+        self
+    }
+
     /// Extends the [`Column`] with the given children.
     pub fn extend(
         self,
@@ -573,26 +590,23 @@ where
                     if i == *index {
                         let scaling = Transformation::scale(style.scale);
                         let translation = *last_cursor - *origin * scaling;
-                        renderer.with_transformation(scaling, |renderer| {
-                            renderer.with_translation(
-                                translation,
-                                |renderer| {
-                                    renderer.with_layer(
-                                        child_layout.bounds(),
-                                        |renderer| {
-                                            child.as_widget().draw(
-                                                state,
-                                                renderer,
-                                                theme,
-                                                defaults,
-                                                child_layout,
-                                                cursor,
-                                                viewport,
-                                            );
-                                        },
-                                    );
-                                },
-                            );
+                        renderer.with_translation(translation, |renderer| {
+                            renderer.with_transformation(scaling, |renderer| {
+                                renderer.with_layer(
+                                    child_layout.bounds(),
+                                    |renderer| {
+                                        child.as_widget().draw(
+                                            state,
+                                            renderer,
+                                            theme,
+                                            defaults,
+                                            child_layout,
+                                            cursor,
+                                            viewport,
+                                        );
+                                    },
+                                );
+                            });
                         });
                     } else {
                         let offset: i32 = match target_index.cmp(index) {
