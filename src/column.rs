@@ -81,6 +81,7 @@ where
     max_width: f32,
     align: Alignment,
     clip: bool,
+    deadband_zone: f32,
     children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_drag: Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
     class: Theme::Class<'a>,
@@ -128,6 +129,7 @@ where
             max_width: f32::INFINITY,
             align: Alignment::Start,
             clip: false,
+            deadband_zone: DRAG_DEADBAND_DISTANCE,
             children,
             class: Theme::default(),
             on_drag: None,
@@ -178,6 +180,12 @@ where
     /// overflow.
     pub fn clip(mut self, clip: bool) -> Self {
         self.clip = clip;
+        self
+    }
+
+    /// Sets the drag deadband zone of the [`Column`].
+    pub fn deadband_zone(mut self, deadband_zone: f32) -> Self {
+        self.deadband_zone = deadband_zone;
         self
     }
 
@@ -420,7 +428,7 @@ where
                     Action::Picking { index, origin } => {
                         if let Some(cursor_position) = cursor.position() {
                             if cursor_position.distance(origin)
-                                > DRAG_DEADBAND_DISTANCE
+                                > self.deadband_zone
                             {
                                 // Start dragging
                                 *action = Action::Dragging {

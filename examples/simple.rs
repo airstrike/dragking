@@ -100,6 +100,8 @@ impl App {
         let drag: Element<'_, Message> = match self.mode {
             Mode::Column => dragking::column(items.collect::<Vec<_>>())
                 .spacing(5)
+                // For the column example only, set the deadband_zone to zero
+                .deadband_zone(0.0)
                 .on_drag(Message::Reorder)
                 .align_x(Center)
                 .into(),
