@@ -1,4 +1,6 @@
-use iced::widget::{column, container, pick_list, row, text};
+use iced::widget::{
+    button, checkbox, column, container, horizontal_space, pick_list, row, text,
+};
 use iced::Length::Fill;
 use iced::{Center, Element, Task, Theme};
 
@@ -18,6 +20,8 @@ pub fn main() -> iced::Result {
 struct App {
     elements: Vec<String>,
     mode: Mode,
+    allow_dragging: bool,
+    last_clicked: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -31,6 +35,8 @@ enum Mode {
 enum Message {
     Reorder(DragEvent),
     SwitchMode(Mode),
+    ToggleDragging(bool),
+    Clicked(String),
 }
 
 impl App {
@@ -44,6 +50,7 @@ impl App {
                     "Date".to_string(),
                     "Elderberry".to_string(),
                 ],
+                allow_dragging: true,
                 ..Default::default()
             },
             Task::none(),
@@ -52,8 +59,14 @@ impl App {
 
     fn update(&mut self, message: Message) {
         match message {
+            Message::Clicked(str) => {
+                self.last_clicked = str;
+            }
             Message::SwitchMode(mode) => {
                 self.mode = mode;
+            }
+            Message::ToggleDragging(boolean) => {
+                self.allow_dragging = boolean;
             }
             Message::Reorder(event) => {
                 match event {
@@ -102,7 +115,9 @@ impl App {
                 .spacing(5)
                 // For the column example only, set the deadband_zone to zero
                 .deadband_zone(0.0)
-                .on_drag(Message::Reorder)
+                .on_drag_maybe(self.allow_dragging.then_some(Message::Reorder))
+                // Alternatively use `on_drag` to always receive drag events
+                // .on_drag(Message::Reorder)
                 .align_x(Center)
                 .into(),
             Mode::Row => dragking::row(items.collect::<Vec<_>>())
@@ -124,20 +139,29 @@ impl App {
                     ..dragking::row::default(theme)
                 })
                 .align_y(Center)
-                .on_drag(Message::Reorder)
+                .on_drag_maybe(self.allow_dragging.then_some(Message::Reorder))
+                // Alternatively use `on_drag` to always receive drag events
+                // .on_drag(Message::Reorder)
                 .into(),
         };
+
+        let toggle = checkbox("Enable dragging", self.allow_dragging)
+            .text_line_height(1.0)
+            .on_toggle(Message::ToggleDragging);
 
         container(
             column![
                 row![
-                    text("Drag items around!").width(Fill),
+                    toggle,
+                    horizontal_space(),
                     pick_list(
                         [Mode::Row, Mode::Column],
                         Some(&self.mode),
                         Message::SwitchMode,
                     )
-                ],
+                    .text_line_height(1.0)
+                ]
+                .spacing(5),
                 container(drag)
                     .padding(20)
                     .width(Fill)
@@ -153,7 +177,8 @@ impl App {
                             },
                             ..Default::default()
                         }
-                    })
+                    }),
+                i_like(&self.last_clicked),
             ]
             .align_x(Center)
             .spacing(5),
@@ -172,10 +197,36 @@ impl App {
 }
 
 fn pickme(label: &str) -> Element<'_, Message> {
-    container(text(label))
-        .style(container::rounded_box)
+    button(label)
+        .style(button::secondary)
+        .on_press(Message::Clicked(label.to_string()))
         .padding(5)
         .into()
+}
+
+fn i_like(label: &str) -> Element<'_, Message> {
+    match label {
+        "" => text("Click on a fruit to select it.")
+            .size(10)
+            .align_x(Center)
+            .into(),
+        _ => text(format!("I like {}", pluralize_fruit(label)))
+            .size(10)
+            .align_x(Center)
+            .into(),
+    }
+}
+
+fn pluralize_fruit(label: &str) -> String {
+    match label {
+        "Apple" => "Apples",
+        "Banana" => "Bananas",
+        "Cherry" => "Cherries",
+        "Date" => "Dates",
+        "Elderberry" => "Elderberries",
+        _ => unreachable!(),
+    }
+    .to_lowercase()
 }
 
 impl std::fmt::Display for Mode {

@@ -1,7 +1,7 @@
 use iced::Point;
 
-pub use self::column::column;
-pub use self::row::row;
+pub use column::column;
+pub use row::row;
 pub mod column;
 pub mod row;
 

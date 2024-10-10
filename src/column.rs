@@ -250,6 +250,15 @@ where
         self
     }
 
+    /// The message produced by the [`Column`] when a child is dragged, if Some.
+    pub fn on_drag_maybe(
+        mut self,
+        on_reorder: Option<impl Fn(DragEvent) -> Message + 'a>,
+    ) -> Self {
+        self.on_drag = on_reorder.map(|f| Box::new(f) as _);
+        self
+    }
+
     // Computes the index and position where a dragged item should be dropped.
     fn compute_target_index(
         &self,
@@ -340,6 +349,12 @@ where
 
     fn diff(&self, tree: &mut Tree) {
         tree.diff_children(&self.children);
+
+        // Reset state if drag is disabled
+        if self.on_drag.is_none() {
+            let state = tree.state.downcast_mut::<Action>();
+            *state = Action::Idle;
+        }
     }
 
     fn size(&self) -> Size<Length> {
@@ -406,98 +421,107 @@ where
 
         let action = tree.state.downcast_mut::<Action>();
 
-        match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if let Some(cursor_position) =
-                    cursor.position_over(layout.bounds())
-                {
-                    for (index, child_layout) in layout.children().enumerate() {
-                        if child_layout.bounds().contains(cursor_position) {
-                            *action = Action::Picking {
-                                index,
-                                origin: cursor_position,
-                            };
-                            event_status = event::Status::Captured;
-                            break;
-                        }
-                    }
-                }
-            }
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                match *action {
-                    Action::Picking { index, origin } => {
-                        if let Some(cursor_position) = cursor.position() {
-                            if cursor_position.distance(origin)
-                                > self.deadband_zone
-                            {
-                                // Start dragging
-                                *action = Action::Dragging {
+        if let Some(on_drag) = &self.on_drag {
+            match event {
+                Event::Mouse(mouse::Event::ButtonPressed(
+                    mouse::Button::Left,
+                )) => {
+                    if let Some(cursor_position) =
+                        cursor.position_over(layout.bounds())
+                    {
+                        for (index, child_layout) in
+                            layout.children().enumerate()
+                        {
+                            if child_layout.bounds().contains(cursor_position) {
+                                *action = Action::Picking {
                                     index,
-                                    origin,
-                                    last_cursor: cursor_position,
+                                    origin: cursor_position,
                                 };
-                                if let Some(on_reorder) = &self.on_drag {
-                                    shell.publish(on_reorder(
-                                        DragEvent::Picked { index },
-                                    ));
-                                }
                                 event_status = event::Status::Captured;
+                                break;
                             }
                         }
                     }
-                    Action::Dragging { origin, index, .. } => {
-                        if let Some(cursor_position) = cursor.position() {
-                            *action = Action::Dragging {
-                                last_cursor: cursor_position,
-                                origin,
-                                index,
-                            };
-                            event_status = event::Status::Captured;
-                        }
-                    }
-                    _ => {}
                 }
-            }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                match *action {
-                    Action::Dragging { index, .. } => {
-                        if let Some(cursor_position) = cursor.position() {
-                            let bounds = layout.bounds();
-                            if bounds.contains(cursor_position) {
-                                let (target_index, drop_position) = self
-                                    .compute_target_index(
-                                        cursor_position,
-                                        layout,
+                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                    match *action {
+                        Action::Picking { index, origin } => {
+                            if let Some(cursor_position) = cursor.position() {
+                                if cursor_position.distance(origin)
+                                    > self.deadband_zone
+                                {
+                                    // Start dragging
+                                    *action = Action::Dragging {
                                         index,
-                                    );
+                                        origin,
+                                        last_cursor: cursor_position,
+                                    };
 
-                                if let Some(on_reorder) = &self.on_drag {
-                                    shell.publish(on_reorder(
+                                    shell.publish(on_drag(DragEvent::Picked {
+                                        index,
+                                    }));
+
+                                    event_status = event::Status::Captured;
+                                }
+                            }
+                        }
+                        Action::Dragging { origin, index, .. } => {
+                            if let Some(cursor_position) = cursor.position() {
+                                *action = Action::Dragging {
+                                    last_cursor: cursor_position,
+                                    origin,
+                                    index,
+                                };
+                                event_status = event::Status::Captured;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Event::Mouse(mouse::Event::ButtonReleased(
+                    mouse::Button::Left,
+                )) => {
+                    match *action {
+                        Action::Dragging { index, .. } => {
+                            if let Some(cursor_position) = cursor.position() {
+                                let bounds = layout.bounds();
+
+                                if bounds.contains(cursor_position) {
+                                    let (target_index, drop_position) = self
+                                        .compute_target_index(
+                                            cursor_position,
+                                            layout,
+                                            index,
+                                        );
+
+                                    shell.publish(on_drag(
                                         DragEvent::Dropped {
                                             index,
                                             target_index,
                                             drop_position,
                                         },
                                     ));
-                                    event_status = event::Status::Captured;
+                                } else {
+                                    shell.publish(on_drag(
+                                        DragEvent::Canceled { index },
+                                    ));
                                 }
-                            } else if let Some(on_reorder) = &self.on_drag {
-                                shell.publish(on_reorder(
-                                    DragEvent::Canceled { index },
-                                ));
-                                event_status = event::Status::Captured;
                             }
+                            *action = Action::Idle;
+                            return event::Status::Captured;
                         }
-                        *action = Action::Idle;
+                        Action::Picking { .. } => {
+                            // Did not move enough to start dragging
+                            *action = Action::Idle;
+                        }
+                        Action::Idle { .. } => {}
                     }
-                    Action::Picking { .. } => {
-                        // Did not move enough to start dragging
-                        *action = Action::Idle;
-                    }
-                    _ => {}
                 }
+                _ => {}
             }
-            _ => {}
+        } else {
+            *action = Action::Idle;
+            event_status = event::Status::Ignored;
         }
 
         let child_status = self
