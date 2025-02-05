@@ -8,5 +8,6 @@ license = "MIT"
 repository = "https://github.com/airstrike/dragking"
 
 [dependencies]
-iced.version = "0.13"
-iced.features = ["advanced"]
+iced = { git = "https://github.com/airstrike/iced.git", branch = "latest", features = [
+    "advanced",
+] }
