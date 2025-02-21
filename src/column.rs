@@ -417,7 +417,8 @@ where
                                 index,
                                 origin: cursor_position,
                             };
-                            return event::Status::Captured;
+                            event_status = event::Status::Captured;
+                            break;
                         }
                     }
                 }
