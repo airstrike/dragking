@@ -22,8 +22,8 @@ struct App {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 enum Mode {
-    #[default]
     Row,
+    #[default]
     Column,
 }
 
@@ -113,7 +113,7 @@ impl App {
                     moved_item_overlay: iced::Color::BLACK
                         .scale_alpha(0.25)
                         .into(),
-                    ghost_background: iced::color![170.0, 0.0, 0.0]
+                    ghost_background: iced::color![170, 0, 0]
                         .scale_alpha(0.25)
                         .into(),
                     ghost_border: iced::Border {

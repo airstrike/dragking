@@ -26,10 +26,9 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::widget::{tree, Operation, Tree, Widget};
 use iced::advanced::{overlay, renderer, Clipboard, Shell};
 use iced::alignment::{self, Alignment};
-use iced::event::{self, Event};
 use iced::{mouse, Transformation};
 use iced::{
-    Background, Border, Color, Element, Length, Padding, Pixels, Point,
+    Background, Border, Color, Element, Event, Length, Padding, Pixels, Point,
     Rectangle, Size, Theme, Vector,
 };
 
@@ -388,22 +387,20 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        let mut event_status = event::Status::Ignored;
-
+    ) {
         let action = tree.state.downcast_mut::<Action>();
 
-        match event {
+        match &event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_position) =
                     cursor.position_over(layout.bounds())
@@ -414,8 +411,9 @@ where
                                 index,
                                 origin: cursor_position,
                             };
-                            event_status = event::Status::Captured;
-                            break;
+                            shell.capture_event();
+                            shell.request_redraw();
+                            return;
                         }
                     }
                 }
@@ -433,23 +431,27 @@ where
                                     origin,
                                     last_cursor: cursor_position,
                                 };
+                                shell.request_redraw();
                                 if let Some(on_reorder) = &self.on_drag {
                                     shell.publish(on_reorder(
                                         DragEvent::Picked { index },
                                     ));
                                 }
-                                event_status = event::Status::Captured;
+                                shell.capture_event();
+                                return;
                             }
                         }
                     }
                     Action::Dragging { origin, index, .. } => {
+                        shell.request_redraw();
                         if let Some(cursor_position) = cursor.position() {
                             *action = Action::Dragging {
                                 last_cursor: cursor_position,
                                 origin,
                                 index,
                             };
-                            event_status = event::Status::Captured;
+                            shell.capture_event();
+                            return;
                         }
                     }
                     _ => {}
@@ -476,13 +478,13 @@ where
                                             drop_position,
                                         },
                                     ));
-                                    event_status = event::Status::Captured;
+                                    shell.capture_event();
                                 }
                             } else if let Some(on_reorder) = &self.on_drag {
                                 shell.publish(on_reorder(
                                     DragEvent::Canceled { index },
                                 ));
-                                event_status = event::Status::Captured;
+                                shell.capture_event();
                             }
                         }
                         *action = Action::Idle;
@@ -493,30 +495,22 @@ where
                     }
                     _ => {}
                 }
+                shell.request_redraw()
             }
             _ => {}
         }
 
-        let child_status = self
+        for ((child, state), layout) in self
             .children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
-                    viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge);
-
-        event::Status::merge(event_status, child_status)
+        {
+            child.as_widget_mut().update(
+                state, event, layout, cursor, renderer, clipboard, shell,
+                viewport,
+            );
+        }
     }
 
     fn mouse_interaction(
@@ -847,18 +841,18 @@ where
         self.row.operate(tree, layout, renderer, operation);
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.row.on_event(
+    ) {
+        self.row.update(
             tree, event, layout, cursor, renderer, clipboard, shell, viewport,
         )
     }
