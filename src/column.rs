@@ -473,11 +473,13 @@ where
                                 }
                             };
 
+                            let mut animations = animations.clone();
+                            animations.offsets[index] = Animation::new(0.0);
                             *action = Action::Picking {
                                 index,
                                 origin: cursor_position,
                                 now: Instant::now(),
-                                animations: animations.clone(),
+                                animations,
                             };
                             shell.capture_event();
                             shell.request_redraw();
@@ -546,6 +548,13 @@ where
 
                             // Update animations for items that need to move
                             for i in 0..animations.offsets.len() {
+                                // Special case for the picked item - animate scale to 1.0
+                                if i == index {
+                                    // Animate the picked item's scale to 1.0
+                                    animations.offsets[i].go_mut(1.0);
+                                    continue;
+                                }
+
                                 let target_offset = match target_index
                                     .cmp(&index)
                                 {
@@ -624,31 +633,41 @@ where
                                 };
 
                                 for i in 0..animations.offsets.len() {
-                                    let offset = match target_index.cmp(index) {
-                                        std::cmp::Ordering::Less
-                                            if i >= target_index
-                                                && i < *index =>
-                                        {
-                                            drag_height
-                                        }
-                                        std::cmp::Ordering::Greater
-                                            if i > *index
-                                                && i <= target_index =>
-                                        {
-                                            -drag_height
-                                        }
-                                        _ => 0.0,
-                                    };
-
-                                    // Update animation target for each item
-                                    if offset != 0.0 {
-                                        animations.offsets[i].go_mut(0.0);
+                                    if i == *index {
+                                        // Reset the scale of the dragged item immediately
+                                        // for a snappier feel when dropping
+                                        animations.offsets[i] =
+                                            Animation::new(0.0);
                                     } else {
-                                        let current_value =
-                                            animations.offsets[i].value();
+                                        let offset = match target_index
+                                            .cmp(index)
+                                        {
+                                            std::cmp::Ordering::Less
+                                                if i >= target_index
+                                                    && i < *index =>
+                                            {
+                                                drag_height
+                                            }
+                                            std::cmp::Ordering::Greater
+                                                if i > *index
+                                                    && i <= target_index =>
+                                            {
+                                                -drag_height
+                                            }
+                                            _ => 0.0,
+                                        };
 
-                                        if current_value != 0.0 {
+                                        // Update animation target for each item
+                                        if offset != 0.0 {
                                             animations.offsets[i].go_mut(0.0);
+                                        } else {
+                                            let current_value =
+                                                animations.offsets[i].value();
+
+                                            if current_value != 0.0 {
+                                                animations.offsets[i]
+                                                    .go_mut(0.0);
+                                            }
                                         }
                                     }
                                 }
@@ -772,8 +791,6 @@ where
                     *index
                 };
 
-                // For read-only access to animations, we don't need to ensure capacity here
-
                 // Store the width of the dragged item
                 let drag_bounds =
                     layout.children().nth(*index).unwrap().bounds();
@@ -788,7 +805,14 @@ where
 
                     // Draw the dragged item separately
                     if i == *index {
-                        let scaling = Transformation::scale(style.scale);
+                        // Interpolate the scale between 1.0 and style.scale
+                        // Use the animation system to control this
+                        let scale_factor = 1.0
+                            + (style.scale - 1.0)
+                                * animations.offsets[i]
+                                    .interpolate_with(|v| v, *now);
+
+                        let scaling = Transformation::scale(scale_factor);
                         let translation = *last_cursor - *origin * scaling;
                         renderer.with_translation(translation, |renderer| {
                             renderer.with_transformation(scaling, |renderer| {
@@ -872,30 +896,40 @@ where
                 }
                 // Draw a ghost of the dragged item in its would-be position
                 // Get the target index based on current cursor position
-                let (target_index, _) = self.compute_target_index(*last_cursor, layout, *index);
-                
-                // Instead of using direction to decide signs, we need to use the 
+                let (target_index, _) =
+                    self.compute_target_index(*last_cursor, layout, *index);
+
+                // Instead of using direction to decide signs, we need to use the
                 // target vs. current index relationship
                 let is_moving_up = target_index < *index;
-                
+
                 // Calculate ghost offset using folding over animated items
-                let ghost_translation = layout.children()
+                let ghost_translation = layout
+                    .children()
                     .enumerate()
                     .filter(|(i, _)| *i != *index) // Skip dragged item
                     .fold(0.0, |acc, (i, child_layout)| {
                         if i < animations.offsets.len() {
                             // Get the current animated offset for this item
-                            let offset = animations.offsets[i].interpolate_with(|v| v, *now);
-                            
+                            let offset = animations.offsets[i]
+                                .interpolate_with(|v| v, *now);
+
                             if offset != 0.0 {
                                 // Add this item's contribution to the ghost offset
-                                let height = child_layout.bounds().height + self.spacing;
-                                
+                                let height =
+                                    child_layout.bounds().height + self.spacing;
+
                                 // Direction depends on the relationship between target and index
-                                if is_moving_up && i >= target_index && i < *index {
+                                if is_moving_up
+                                    && i >= target_index
+                                    && i < *index
+                                {
                                     // When moving up, the ghost should move up (negative Y)
                                     return acc - height;
-                                } else if !is_moving_up && i > *index && i <= target_index {
+                                } else if !is_moving_up
+                                    && i > *index
+                                    && i <= target_index
+                                {
                                     // When moving down, the ghost should move down (positive Y)
                                     return acc + height;
                                 }
@@ -903,7 +937,7 @@ where
                         }
                         acc
                     });
-                
+
                 let ghost_vector = Vector::new(0.0, ghost_translation);
                 renderer.with_translation(ghost_vector, |renderer| {
                     renderer.fill_quad(
@@ -955,9 +989,10 @@ where
                         // Show overlay on items that are being animated
                         if offset != 0.0 {
                             // Calculate progress as a percentage of maximum possible movement
-                            let height = child_layout.bounds().height + self.spacing;
+                            let height =
+                                child_layout.bounds().height + self.spacing;
                             let progress = (offset / height).abs();
-                            
+
                             renderer.fill_quad(
                                 renderer::Quad {
                                     bounds: child_layout.bounds(),
