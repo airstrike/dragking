@@ -26,13 +26,15 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::widget::{tree, Operation, Tree, Widget};
 use iced::advanced::{overlay, renderer, Clipboard, Shell};
 use iced::alignment::{self, Alignment};
+use iced::animation::Easing;
+use iced::time::Instant;
 use iced::{mouse, Transformation};
 use iced::{
-    Background, Border, Color, Element, Event, Length, Padding, Pixels, Point,
-    Rectangle, Size, Theme, Vector,
+    Animation, Background, Border, Color, Element, Event, Length, Padding,
+    Pixels, Point, Rectangle, Size, Theme, Vector,
 };
 
-use crate::{Action, DragEvent, DropPosition};
+use crate::{Action, DragEvent, DropPosition, ItemAnimations};
 
 pub fn column<'a, Message, Theme, Renderer>(
     children: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
@@ -330,7 +332,21 @@ where
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(Action::Idle)
+        // Initialize with default animations for each child
+        let mut animations = ItemAnimations::default();
+        animations.with_capacity(self.children.len());
+
+        // Set up animations with appropriate duration and easing
+        for i in 0..animations.offsets.len() {
+            animations.offsets[i] = Animation::new(0.0)
+                .easing(Easing::EaseOutCubic)
+                .duration(std::time::Duration::from_millis(250));
+        }
+
+        tree::State::new(Action::Idle {
+            now: Some(Instant::now()),
+            animations,
+        })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -339,6 +355,17 @@ where
 
     fn diff(&self, tree: &mut Tree) {
         tree.diff_children(&self.children);
+
+        let action = tree.state.downcast_mut::<Action>();
+
+        // Allocate animation slots for all children
+        match action {
+            Action::Idle { animations, .. }
+            | Action::Picking { animations, .. }
+            | Action::Dragging { animations, .. } => {
+                animations.with_capacity(self.children.len());
+            }
+        }
     }
 
     fn size(&self) -> Size<Length> {
@@ -403,16 +430,54 @@ where
     ) {
         let action = tree.state.downcast_mut::<Action>();
 
+        // Handle animation timing updates
+
         match &event {
+            Event::Window(iced::window::Event::RedrawRequested(now)) => {
+                match action {
+                    Action::Idle {
+                        now: current_now,
+                        animations,
+                    } => {
+                        *current_now = Some(*now);
+
+                        if animations.is_animating(*now) {
+                            shell.request_redraw();
+                        }
+                    }
+                    Action::Picking {
+                        now: current_now, ..
+                    }
+                    | Action::Dragging {
+                        now: current_now, ..
+                    } => {
+                        *current_now = *now;
+                        shell.request_redraw(); // Always redraw during picking or dragging
+                    }
+                }
+            }
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if let Some(cursor_position) =
                     cursor.position_over(layout.bounds())
                 {
                     for (index, child_layout) in layout.children().enumerate() {
                         if child_layout.bounds().contains(cursor_position) {
+                            // Get animations from previous state
+                            let animations = match action {
+                                Action::Idle { animations, .. } => animations,
+                                Action::Picking { animations, .. } => {
+                                    animations
+                                }
+                                Action::Dragging { animations, .. } => {
+                                    animations
+                                }
+                            };
+
                             *action = Action::Picking {
                                 index,
                                 origin: cursor_position,
+                                now: Instant::now(),
+                                animations: animations.clone(),
                             };
                             shell.capture_event();
                             shell.request_redraw();
@@ -423,7 +488,12 @@ where
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 match *action {
-                    Action::Picking { index, origin } => {
+                    Action::Picking {
+                        index,
+                        origin,
+                        now,
+                        ref animations,
+                    } => {
                         if let Some(cursor_position) = cursor.position() {
                             if cursor_position.distance(origin)
                                 > self.deadband_zone
@@ -433,6 +503,8 @@ where
                                     index,
                                     origin,
                                     last_cursor: cursor_position,
+                                    now,
+                                    animations: animations.clone(),
                                 };
                                 shell.request_redraw();
                                 if let Some(on_reorder) = &self.on_drag {
@@ -445,13 +517,73 @@ where
                             }
                         }
                     }
-                    Action::Dragging { origin, index, .. } => {
+                    Action::Dragging {
+                        origin,
+                        index,
+                        now,
+                        ref mut animations,
+                        ..
+                    } => {
                         shell.request_redraw();
                         if let Some(cursor_position) = cursor.position() {
+                            // Allocate animation slots just in case
+                            animations.with_capacity(self.children.len());
+
+                            let (target_index, _) = self.compute_target_index(
+                                cursor_position,
+                                layout,
+                                index,
+                            );
+
+                            // Calculate height of the dragged item
+                            let drag_height = if let Some(child_layout) =
+                                layout.children().nth(index)
+                            {
+                                child_layout.bounds().height + self.spacing
+                            } else {
+                                0.0
+                            };
+
+                            // Update animations for items that need to move
+                            for i in 0..animations.offsets.len() {
+                                let target_offset = match target_index
+                                    .cmp(&index)
+                                {
+                                    std::cmp::Ordering::Less
+                                        if i >= target_index && i < index =>
+                                    {
+                                        drag_height
+                                    }
+                                    std::cmp::Ordering::Greater
+                                        if i > index && i <= target_index =>
+                                    {
+                                        -drag_height
+                                    }
+                                    _ => 0.0,
+                                };
+
+                                // Only update animations for items that need to move
+                                if target_offset != 0.0 {
+                                    if (target_offset
+                                        - animations.offsets[i].value())
+                                    .abs()
+                                        > 1.0
+                                    {
+                                        animations.offsets[i]
+                                            .go_mut(target_offset);
+                                    }
+                                } else if animations.offsets[i].value() != 0.0 {
+                                    // Return to normal position if previously moved
+                                    animations.offsets[i].go_mut(0.0);
+                                }
+                            }
+
                             *action = Action::Dragging {
                                 last_cursor: cursor_position,
                                 origin,
                                 index,
+                                now,
+                                animations: animations.clone(),
                             };
                             shell.capture_event();
                             return;
@@ -461,8 +593,18 @@ where
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                match *action {
-                    Action::Dragging { index, .. } => {
+                match action {
+                    Action::Dragging {
+                        index,
+                        ref mut animations,
+                        now,
+                        ..
+                    } => {
+                        let current_now = *now;
+
+                        // Allocate animation slots just in case
+                        animations.with_capacity(self.children.len());
+
                         if let Some(cursor_position) = cursor.position() {
                             let bounds = layout.bounds();
                             if bounds.contains(cursor_position) {
@@ -470,13 +612,52 @@ where
                                     .compute_target_index(
                                         cursor_position,
                                         layout,
-                                        index,
+                                        *index,
                                     );
+
+                                let drag_height = if let Some(child_layout) =
+                                    layout.children().nth(*index)
+                                {
+                                    child_layout.bounds().height + self.spacing
+                                } else {
+                                    0.0
+                                };
+
+                                for i in 0..animations.offsets.len() {
+                                    let offset = match target_index.cmp(&index)
+                                    {
+                                        std::cmp::Ordering::Less
+                                            if i >= target_index
+                                                && i < *index =>
+                                        {
+                                            drag_height
+                                        }
+                                        std::cmp::Ordering::Greater
+                                            if i > *index
+                                                && i <= target_index =>
+                                        {
+                                            -drag_height
+                                        }
+                                        _ => 0.0,
+                                    };
+
+                                    // Update animation target for each item
+                                    if offset != 0.0 {
+                                        animations.offsets[i].go_mut(0.0);
+                                    } else {
+                                        let current_value =
+                                            animations.offsets[i].value();
+
+                                        if current_value != 0.0 {
+                                            animations.offsets[i].go_mut(0.0);
+                                        }
+                                    }
+                                }
 
                                 if let Some(on_reorder) = &self.on_drag {
                                     shell.publish(on_reorder(
                                         DragEvent::Dropped {
-                                            index,
+                                            index: *index,
                                             target_index,
                                             drop_position,
                                         },
@@ -485,16 +666,26 @@ where
                                 }
                             } else if let Some(on_reorder) = &self.on_drag {
                                 shell.publish(on_reorder(
-                                    DragEvent::Canceled { index },
+                                    DragEvent::Canceled { index: *index },
                                 ));
                                 shell.capture_event();
                             }
                         }
-                        *action = Action::Idle;
+
+                        // Transition to Idle state with animations
+                        *action = Action::Idle {
+                            now: Some(current_now),
+                            animations: animations.clone(),
+                        };
                     }
-                    Action::Picking { .. } => {
+                    Action::Picking {
+                        animations, now, ..
+                    } => {
                         // Did not move enough to start dragging
-                        *action = Action::Idle;
+                        *action = Action::Idle {
+                            now: Some(*now),
+                            animations: animations.clone(),
+                        };
                     }
                     _ => {}
                 }
@@ -526,8 +717,14 @@ where
     ) -> mouse::Interaction {
         let action = tree.state.downcast_ref::<Action>();
 
-        if let Action::Dragging { .. } = *action {
-            return mouse::Interaction::Grabbing;
+        match action {
+            Action::Dragging { .. } => {
+                return mouse::Interaction::Grabbing;
+            }
+            Action::Picking { .. } => {
+                return mouse::Interaction::Grab;
+            }
+            _ => {}
         }
 
         self.children
@@ -561,6 +758,8 @@ where
                 index,
                 last_cursor,
                 origin,
+                now,
+                animations,
                 ..
             } => {
                 let child_count = self.children.len();
@@ -573,6 +772,8 @@ where
                 } else {
                     *index
                 };
+
+                // For read-only access to animations, we don't need to ensure capacity here
 
                 // Store the width of the dragged item
                 let drag_bounds =
@@ -587,8 +788,6 @@ where
                     let child_layout = layout.children().nth(i).unwrap();
 
                     // Draw the dragged item separately
-                    // TODO: Draw a shadow below the picked item to enhance the
-                    // floating effect
                     if i == *index {
                         let scaling = Transformation::scale(style.scale);
                         let translation = *last_cursor - *origin * scaling;
@@ -611,22 +810,33 @@ where
                             });
                         });
                     } else {
-                        let offset: i32 = match target_index.cmp(index) {
-                            std::cmp::Ordering::Less
-                                if i >= target_index && i < *index =>
-                            {
-                                1
-                            }
-                            std::cmp::Ordering::Greater
-                                if i > *index && i <= target_index =>
-                            {
-                                -1
-                            }
-                            _ => 0,
+                        // Get animation offset if available
+                        let base_offset = if i < animations.offsets.len() {
+                            animations.offsets[i].interpolate_with(|v| v, *now)
+                        } else {
+                            0.0
                         };
 
-                        let translation =
-                            Vector::new(0.0, offset as f32 * drag_height);
+                        // If no animation running, calculate static offset
+                        let offset = if base_offset == 0.0 {
+                            match target_index.cmp(&index) {
+                                std::cmp::Ordering::Less
+                                    if i >= target_index && i < *index =>
+                                {
+                                    drag_height
+                                }
+                                std::cmp::Ordering::Greater
+                                    if i > *index && i <= target_index =>
+                                {
+                                    -drag_height
+                                }
+                                _ => 0.0,
+                            }
+                        } else {
+                            base_offset
+                        };
+
+                        let translation = Vector::new(0.0, offset);
                         renderer.with_translation(translation, |renderer| {
                             child.as_widget().draw(
                                 state,
@@ -638,22 +848,30 @@ where
                                 viewport,
                             );
                             // Draw an overlay if this item is being moved
-                            // TODO: instead of drawing an overlay, it would be nicer to
-                            // draw the item with a reduced opacity, but that's not possible today
-                            if offset != 0 {
+                            if offset != 0.0 {
+                                // Calculate alpha based on how far the item has moved
+                                let max_offset = if offset > 0.0 {
+                                    drag_height
+                                } else {
+                                    -drag_height
+                                };
+                                let progress = (offset / max_offset).abs();
+
                                 renderer.fill_quad(
                                     renderer::Quad {
                                         bounds: child_layout.bounds(),
                                         ..renderer::Quad::default()
                                     },
-                                    style.moved_item_overlay,
+                                    style
+                                        .moved_item_overlay
+                                        .scale_alpha(progress),
                                 );
 
                                 // Keep track of the total translation so we can
                                 // draw the "ghost" of the dragged item later
                                 translations -= (child_layout.bounds().height
                                     + self.spacing)
-                                    * offset.signum() as f32;
+                                    * offset.signum();
                             }
                         });
                     }
@@ -671,8 +889,61 @@ where
                     );
                 });
             }
+            Action::Idle {
+                now: Some(now),
+                animations,
+            } => {
+                // Draw all children with animations if needed
+                for (i, child) in self.children.iter().enumerate() {
+                    let state = &tree.children[i];
+                    let child_layout = layout.children().nth(i).unwrap();
+
+                    // Apply animation offsets if any
+                    let offset = if i < animations.offsets.len() {
+                        let is_animating =
+                            animations.offsets[i].is_animating(*now);
+
+                        if is_animating {
+                            // Get the current animation value
+                            animations.offsets[i].interpolate_with(|v| v, *now)
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    };
+
+                    let translation = Vector::new(0.0, offset);
+                    renderer.with_translation(translation, |renderer| {
+                        child.as_widget().draw(
+                            state,
+                            renderer,
+                            theme,
+                            defaults,
+                            child_layout,
+                            cursor,
+                            viewport,
+                        );
+
+                        // Optional: Show overlay on items that are being animated
+                        if offset != 0.0 {
+                            let alpha = (offset.abs()
+                                / (child_layout.bounds().height
+                                    + self.spacing))
+                                .min(1.0);
+                            renderer.fill_quad(
+                                renderer::Quad {
+                                    bounds: child_layout.bounds(),
+                                    ..renderer::Quad::default()
+                                },
+                                style.moved_item_overlay.scale_alpha(alpha),
+                            );
+                        }
+                    });
+                }
+            }
             _ => {
-                // Draw all children normally when not dragging
+                // Draw all children normally when not dragging or animating
                 for ((child, state), layout) in self
                     .children
                     .iter()

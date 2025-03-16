@@ -22,8 +22,8 @@ struct App {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 enum Mode {
-    Row,
     #[default]
+    Row,
     Column,
 }
 
