@@ -856,8 +856,41 @@ where
                     }
                 }
                 // Draw a ghost of the dragged item in its would-be position
-                let ghost_translation = Vector::new(translations, 0.0);
-                renderer.with_translation(ghost_translation, |renderer| {
+                // Get the target index based on current cursor position
+                let (target_index, _) = self.compute_target_index(*last_cursor, layout, *index);
+                
+                // Instead of using direction to decide signs, we need to use the 
+                // target vs. current index relationship
+                let is_moving_left = target_index < *index;
+                
+                // Calculate ghost offset using folding over animated items
+                let ghost_translation = layout.children()
+                    .enumerate()
+                    .filter(|(i, _)| *i != *index) // Skip dragged item
+                    .fold(0.0, |acc, (i, child_layout)| {
+                        if i < animations.offsets.len() {
+                            // Get the current animated offset for this item
+                            let offset = animations.offsets[i].interpolate_with(|v| v, *now);
+                            
+                            if offset != 0.0 {
+                                // Add this item's contribution to the ghost offset
+                                let width = child_layout.bounds().width + self.spacing;
+                                
+                                // Direction depends on the relationship between target and index
+                                if is_moving_left && i >= target_index && i < *index {
+                                    // When moving left, the ghost should move left (negative X)
+                                    return acc - width;
+                                } else if !is_moving_left && i > *index && i <= target_index {
+                                    // When moving right, the ghost should move right (positive X)
+                                    return acc + width;
+                                }
+                            }
+                        }
+                        acc
+                    });
+                
+                let ghost_vector = Vector::new(ghost_translation, 0.0);
+                renderer.with_translation(ghost_vector, |renderer| {
                     renderer.fill_quad(
                         renderer::Quad {
                             bounds: drag_bounds,
@@ -907,7 +940,7 @@ where
                         // Optional: Show overlay on items that are being animated
                         if offset != 0.0 {
                             let alpha = (offset.abs()
-                                / (child_layout.bounds().height
+                                / (child_layout.bounds().width
                                     + self.spacing))
                                 .min(1.0);
                             renderer.fill_quad(

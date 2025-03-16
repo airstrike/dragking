@@ -100,15 +100,8 @@ impl App {
         let drag: Element<'_, Message> = match self.mode {
             Mode::Column => dragking::column(items.collect::<Vec<_>>())
                 .spacing(5)
-                // For the column example only, set the deadband_zone to zero
-                .deadband_zone(0.0)
-                .on_drag(Message::Reorder)
-                .align_x(Center)
-                .into(),
-            Mode::Row => dragking::row(items.collect::<Vec<_>>())
-                .spacing(5)
-                // For the row example only, show a totally custom Style
-                .style(|theme| dragking::row::Style {
+                // For the column example only, show a totally custom Style
+                .style(|theme| dragking::column::Style {
                     scale: 1.2,
                     moved_item_overlay: iced::Color::BLACK
                         .scale_alpha(0.25)
@@ -121,10 +114,17 @@ impl App {
                         width: 0.0,
                         radius: 5.0.into(),
                     },
-                    ..dragking::row::default(theme)
+                    ..dragking::column::default(theme)
                 })
+                .on_drag(Message::Reorder)
+                .align_x(Center)
+                .into(),
+            Mode::Row => dragking::row(items.collect::<Vec<_>>())
+                .spacing(5)
                 .align_y(Center)
                 .on_drag(Message::Reorder)
+                // For the row example only, set the deadband_zone to zero
+                .deadband_zone(0.0)
                 .into(),
         };
 

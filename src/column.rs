@@ -876,8 +876,41 @@ where
                     }
                 }
                 // Draw a ghost of the dragged item in its would-be position
-                let ghost_translation = Vector::new(0.0, translations);
-                renderer.with_translation(ghost_translation, |renderer| {
+                // Get the target index based on current cursor position
+                let (target_index, _) = self.compute_target_index(*last_cursor, layout, *index);
+                
+                // Instead of using direction to decide signs, we need to use the 
+                // target vs. current index relationship
+                let is_moving_up = target_index < *index;
+                
+                // Calculate ghost offset using folding over animated items
+                let ghost_translation = layout.children()
+                    .enumerate()
+                    .filter(|(i, _)| *i != *index) // Skip dragged item
+                    .fold(0.0, |acc, (i, child_layout)| {
+                        if i < animations.offsets.len() {
+                            // Get the current animated offset for this item
+                            let offset = animations.offsets[i].interpolate_with(|v| v, *now);
+                            
+                            if offset != 0.0 {
+                                // Add this item's contribution to the ghost offset
+                                let height = child_layout.bounds().height + self.spacing;
+                                
+                                // Direction depends on the relationship between target and index
+                                if is_moving_up && i >= target_index && i < *index {
+                                    // When moving up, the ghost should move up (negative Y)
+                                    return acc - height;
+                                } else if !is_moving_up && i > *index && i <= target_index {
+                                    // When moving down, the ghost should move down (positive Y)
+                                    return acc + height;
+                                }
+                            }
+                        }
+                        acc
+                    });
+                
+                let ghost_vector = Vector::new(0.0, ghost_translation);
+                renderer.with_translation(ghost_vector, |renderer| {
                     renderer.fill_quad(
                         renderer::Quad {
                             bounds: drag_bounds,
