@@ -838,12 +838,17 @@ where
                             // TODO: instead of drawing an overlay, it would be nicer to
                             // draw the item with a reduced opacity, but that's not possible today
                             if offset != 0.0 {
+                                // Calculate progress as a percentage of maximum possible movement
+                                let progress = (offset / drag_width).abs();
+                                
+                                // Use progress for overlay alpha - starts transparent and fades in
+                                // as the item moves to its new position
                                 renderer.fill_quad(
                                     renderer::Quad {
                                         bounds: child_layout.bounds(),
                                         ..renderer::Quad::default()
                                     },
-                                    style.moved_item_overlay,
+                                    style.moved_item_overlay.scale_alpha(progress),
                                 );
 
                                 // Keep track of the total translation so we can
@@ -937,18 +942,18 @@ where
                             viewport,
                         );
 
-                        // Optional: Show overlay on items that are being animated
+                        // Show overlay on items that are being animated
                         if offset != 0.0 {
-                            let alpha = (offset.abs()
-                                / (child_layout.bounds().width
-                                    + self.spacing))
-                                .min(1.0);
+                            // Calculate progress as a percentage of maximum possible movement
+                            let width = child_layout.bounds().width + self.spacing;
+                            let progress = (offset / width).abs();
+                            
                             renderer.fill_quad(
                                 renderer::Quad {
                                     bounds: child_layout.bounds(),
                                     ..renderer::Quad::default()
                                 },
-                                style.moved_item_overlay.scale_alpha(alpha),
+                                style.moved_item_overlay.scale_alpha(progress),
                             );
                         }
                     });

@@ -848,13 +848,8 @@ where
                             );
                             // Draw an overlay if this item is being moved
                             if offset != 0.0 {
-                                // Calculate alpha based on how far the item has moved
-                                let max_offset = if offset > 0.0 {
-                                    drag_height
-                                } else {
-                                    -drag_height
-                                };
-                                let progress = (offset / max_offset).abs();
+                                // Calculate progress as a percentage of maximum possible movement
+                                let progress = (offset / drag_height).abs();
 
                                 renderer.fill_quad(
                                     renderer::Quad {
@@ -957,18 +952,18 @@ where
                             viewport,
                         );
 
-                        // Optional: Show overlay on items that are being animated
+                        // Show overlay on items that are being animated
                         if offset != 0.0 {
-                            let alpha = (offset.abs()
-                                / (child_layout.bounds().height
-                                    + self.spacing))
-                                .min(1.0);
+                            // Calculate progress as a percentage of maximum possible movement
+                            let height = child_layout.bounds().height + self.spacing;
+                            let progress = (offset / height).abs();
+                            
                             renderer.fill_quad(
                                 renderer::Quad {
                                     bounds: child_layout.bounds(),
                                     ..renderer::Quad::default()
                                 },
-                                style.moved_item_overlay.scale_alpha(alpha),
+                                style.moved_item_overlay.scale_alpha(progress),
                             );
                         }
                     });
