@@ -38,18 +38,10 @@ impl Default for Action {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub(crate) struct ItemAnimations {
     /// Offset animations for each item
     pub offsets: Vec<Animation<f32>>,
-}
-
-impl Default for ItemAnimations {
-    fn default() -> Self {
-        Self {
-            offsets: Vec::new(),
-        }
-    }
 }
 
 impl ItemAnimations {

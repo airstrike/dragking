@@ -295,7 +295,7 @@ where
     }
 }
 
-impl<'a, Message, Renderer> Default for Row<'a, Message, Theme, Renderer>
+impl<Message, Renderer> Default for Row<'_, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
     Theme: Catalog,
@@ -320,8 +320,8 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for Row<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Row<'_, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
     Theme: Catalog,
@@ -618,8 +618,7 @@ where
                                 };
 
                                 for i in 0..animations.offsets.len() {
-                                    let offset = match target_index.cmp(&index)
-                                    {
+                                    let offset = match target_index.cmp(index) {
                                         std::cmp::Ordering::Less
                                             if i >= target_index
                                                 && i < *index =>
@@ -807,7 +806,7 @@ where
 
                         // If no animation running, calculate static offset
                         let offset = if base_offset == 0.0 {
-                            match target_index.cmp(&index) {
+                            match target_index.cmp(index) {
                                 std::cmp::Ordering::Less
                                     if i >= target_index && i < *index =>
                                 {
@@ -851,7 +850,7 @@ where
                                 // draw the "ghost" of the dragged item later
                                 translations -= (child_layout.bounds().width
                                     + self.spacing)
-                                    * offset.signum() as f32;
+                                    * offset.signum();
                             }
                         });
                     }
@@ -982,8 +981,8 @@ where
     row: Row<'a, Message, Theme, Renderer>,
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for Wrapping<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Wrapping<'_, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
     Theme: Catalog,

@@ -296,7 +296,7 @@ where
     }
 }
 
-impl<'a, Message, Renderer> Default for Column<'a, Message, Theme, Renderer>
+impl<Message, Renderer> Default for Column<'_, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
     Theme: Catalog,
@@ -321,8 +321,8 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
-    for Column<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Column<'_, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
     Theme: Catalog,
@@ -339,7 +339,7 @@ where
         // Set up animations with appropriate duration and easing
         for i in 0..animations.offsets.len() {
             animations.offsets[i] = Animation::new(0.0)
-                .easing(Easing::EaseOutCubic)
+                .easing(Easing::EaseOutExpo)
                 .duration(std::time::Duration::from_millis(250));
         }
 
@@ -624,8 +624,7 @@ where
                                 };
 
                                 for i in 0..animations.offsets.len() {
-                                    let offset = match target_index.cmp(&index)
-                                    {
+                                    let offset = match target_index.cmp(index) {
                                         std::cmp::Ordering::Less
                                             if i >= target_index
                                                 && i < *index =>
@@ -819,7 +818,7 @@ where
 
                         // If no animation running, calculate static offset
                         let offset = if base_offset == 0.0 {
-                            match target_index.cmp(&index) {
+                            match target_index.cmp(index) {
                                 std::cmp::Ordering::Less
                                     if i >= target_index && i < *index =>
                                 {
