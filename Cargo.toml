@@ -11,3 +11,9 @@ repository = "https://github.com/airstrike/dragking"
 iced = { git = "https://github.com/airstrike/iced.git", branch = "master", features = [
     "advanced",
 ] }
+
+[dev-dependencies]
+iced = { git = "https://github.com/airstrike/iced.git", branch = "master", features = [
+    "advanced",
+    "lazy",
+] }

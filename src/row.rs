@@ -427,6 +427,22 @@ where
     ) {
         let action = tree.state.downcast_mut::<Action>();
 
+        for ((child, state), layout) in self
+            .children
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(layout.children())
+        {
+            child.as_widget_mut().update(
+                state, event, layout, cursor, renderer, clipboard, shell,
+                viewport,
+            );
+        }
+
+        if shell.is_event_captured() {
+            return;
+        }
+
         match &event {
             Event::Window(iced::window::Event::RedrawRequested(now)) => {
                 match action {
@@ -704,18 +720,6 @@ where
                 shell.request_redraw();
             }
             _ => {}
-        }
-
-        for ((child, state), layout) in self
-            .children
-            .iter_mut()
-            .zip(&mut tree.children)
-            .zip(layout.children())
-        {
-            child.as_widget_mut().update(
-                state, event, layout, cursor, renderer, clipboard, shell,
-                viewport,
-            );
         }
     }
 
