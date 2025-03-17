@@ -484,7 +484,7 @@ where
                                 }
                             };
 
-                            let mut animations = animations.clone();
+                            let mut animations = std::mem::take(animations);
                             animations.offsets[index] = Animation::new(0.0);
                             *action = Action::Picking {
                                 index,
@@ -505,7 +505,7 @@ where
                         index,
                         origin,
                         now,
-                        ref animations,
+                        ref mut animations,
                     } => {
                         if let Some(cursor_position) = cursor.position() {
                             if cursor_position.distance(origin)
@@ -517,7 +517,7 @@ where
                                     origin,
                                     last_cursor: cursor_position,
                                     now,
-                                    animations: animations.clone(),
+                                    animations: std::mem::take(animations),
                                 };
                                 shell.request_redraw();
                                 if let Some(on_reorder) = &self.on_drag {
@@ -526,7 +526,6 @@ where
                                     ));
                                 }
                                 shell.capture_event();
-                                return;
                             }
                         }
                     }
@@ -602,10 +601,20 @@ where
                                 origin,
                                 index,
                                 now,
-                                animations: animations.clone(),
+                                animations: std::mem::take(animations),
                             };
                             shell.capture_event();
-                            return;
+                        } else {
+                            if let Some(on_reorder) = &self.on_drag {
+                                shell.publish(on_reorder(
+                                    DragEvent::Canceled { index },
+                                ));
+                            }
+
+                            *action = Action::Idle {
+                                now: Some(now),
+                                animations: std::mem::take(animations),
+                            };
                         }
                     }
                     _ => {}
@@ -703,7 +712,7 @@ where
                         // Transition to Idle state with animations
                         *action = Action::Idle {
                             now: Some(current_now),
-                            animations: animations.clone(),
+                            animations: std::mem::take(animations),
                         };
                     }
                     Action::Picking {
@@ -712,7 +721,7 @@ where
                         // Did not move enough to start dragging
                         *action = Action::Idle {
                             now: Some(*now),
-                            animations: animations.clone(),
+                            animations: std::mem::take(animations),
                         };
                     }
                     _ => {}

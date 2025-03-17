@@ -56,7 +56,7 @@ impl ItemAnimations {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DropPosition {
     Before,
     Swap,
