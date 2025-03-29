@@ -8,12 +8,14 @@ license = "MIT"
 repository = "https://github.com/airstrike/dragking"
 
 [dependencies]
-iced = { git = "https://github.com/airstrike/iced.git", branch = "master", features = [
+iced = { git = "https://github.com/airstrike/iced.git", branch = "master", default-features = false, features = [
     "advanced",
+    "wgpu",
 ] }
 
 [dev-dependencies]
-iced = { git = "https://github.com/airstrike/iced.git", branch = "master", features = [
+iced = { git = "https://github.com/airstrike/iced.git", branch = "master", default-features = false, features = [
     "advanced",
     "lazy",
+    "wgpu",
 ] }
