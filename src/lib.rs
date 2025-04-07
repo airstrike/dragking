@@ -45,6 +45,12 @@ pub(crate) struct ItemAnimations {
 }
 
 impl ItemAnimations {
+    pub fn zero(&mut self) {
+        for animation in &mut self.offsets {
+            *animation = Animation::new(0.0);
+        }
+    }
+
     pub fn is_animating(&self, now: Instant) -> bool {
         self.offsets.iter().any(|anim| anim.is_animating(now))
     }

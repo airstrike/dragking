@@ -26,7 +26,6 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::widget::{tree, Operation, Tree, Widget};
 use iced::advanced::{overlay, renderer, Clipboard, Shell};
 use iced::alignment::{self, Alignment};
-use iced::animation::Easing;
 use iced::time::Instant;
 use iced::{mouse, Transformation};
 use iced::{
@@ -319,13 +318,6 @@ where
         let mut animations = ItemAnimations::default();
         animations.with_capacity(self.children.len());
 
-        // Set up animations with appropriate duration and easing
-        for i in 0..animations.offsets.len() {
-            animations.offsets[i] = Animation::new(0.0)
-                .easing(Easing::EaseOutExpo)
-                .duration(std::time::Duration::from_millis(250));
-        }
-
         tree::State::new(Action::Idle {
             now: Some(Instant::now()),
             animations,
@@ -455,32 +447,26 @@ where
                 if let Some(cursor_position) =
                     cursor.position_over(layout.bounds())
                 {
-                    for (index, child_layout) in layout.children().enumerate() {
-                        if child_layout.bounds().contains(cursor_position) {
-                            // Get animations from previous state
-                            let animations = match action {
-                                Action::Idle { animations, .. } => animations,
-                                Action::Picking { animations, .. } => {
-                                    animations
-                                }
-                                Action::Dragging { animations, .. } => {
-                                    animations
-                                }
-                            };
+                    // Get animations from previous state
+                    let animations = match action {
+                        Action::Idle { animations, .. } => animations,
+                        Action::Picking { animations, .. } => animations,
+                        Action::Dragging { animations, .. } => animations,
+                    };
+                    animations.zero();
 
-                            let mut animations = std::mem::take(animations);
-                            animations.offsets[index] = Animation::new(0.0);
-                            *action = Action::Picking {
-                                index,
-                                origin: cursor_position,
-                                now: Instant::now(),
-                                animations,
-                            };
-                            shell.capture_event();
-                            shell.request_redraw();
-                            return;
-                        }
-                    }
+                    let index =
+                        self.compute_target_index(cursor_position, layout);
+
+                    *action = Action::Picking {
+                        index,
+                        origin: cursor_position,
+                        now: Instant::now(),
+                        animations: std::mem::take(animations),
+                    };
+
+                    shell.capture_event();
+                    shell.request_redraw();
                 }
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
