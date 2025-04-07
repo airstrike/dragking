@@ -256,30 +256,27 @@ where
         &self,
         cursor_position: Point,
         layout: Layout<'_>,
-        dragged_index: usize,
     ) -> usize {
+        let bounds = layout.bounds();
         let cursor_y = cursor_position.y;
+
+        if cursor_y < bounds.y {
+            // Cursor is above all children
+            return 0;
+        }
 
         for (i, child_layout) in layout.children().enumerate() {
             let bounds = child_layout.bounds();
             let y = bounds.y;
             let height = bounds.height;
 
-            if cursor_y >= y && cursor_y <= y + height {
+            if cursor_y <= y + height {
                 return i;
             }
         }
 
-        if cursor_y < layout.position().y {
-            // Cursor is above all children
-            0
-        } else if cursor_y > layout.position().y + layout.bounds().height {
-            // Cursor is below all children
-            self.children.len() - 1
-        } else {
-            // Cursor isn't over any children
-            dragged_index
-        }
+        // Cursor is below all children
+        self.children.len() - 1
     }
 }
 
@@ -531,11 +528,8 @@ where
                             // Allocate animation slots just in case
                             animations.with_capacity(self.children.len());
 
-                            let target_index = self.compute_target_index(
-                                cursor_position,
-                                layout,
-                                index,
-                            );
+                            let target_index = self
+                                .compute_target_index(cursor_position, layout);
 
                             // Calculate height of the dragged item
                             let drag_height = if let Some(child_layout) =
@@ -618,7 +612,6 @@ where
                                 let target_index = self.compute_target_index(
                                     cursor_position,
                                     layout,
-                                    *index,
                                 );
 
                                 let drag_height = if let Some(child_layout) =
@@ -760,7 +753,7 @@ where
                 // Determine the target index based on cursor position
                 let target_index = if cursor.position().is_some() {
                     let target_index =
-                        self.compute_target_index(*last_cursor, layout, *index);
+                        self.compute_target_index(*last_cursor, layout);
                     target_index.min(child_count - 1)
                 } else {
                     *index
@@ -872,7 +865,7 @@ where
                 // Draw a ghost of the dragged item in its would-be position
                 // Get the target index based on current cursor position
                 let target_index =
-                    self.compute_target_index(*last_cursor, layout, *index);
+                    self.compute_target_index(*last_cursor, layout);
 
                 // Instead of using direction to decide signs, we need to use the
                 // target vs. current index relationship
