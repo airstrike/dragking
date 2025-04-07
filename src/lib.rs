@@ -56,24 +56,9 @@ impl ItemAnimations {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DropPosition {
-    Before,
-    Swap,
-    After,
-}
-
 #[derive(Debug, Clone)]
 pub enum DragEvent {
-    Picked {
-        index: usize,
-    },
-    Dropped {
-        index: usize,
-        target_index: usize,
-        drop_position: DropPosition,
-    },
-    Canceled {
-        index: usize,
-    },
+    Picked { index: usize },
+    Dropped { index: usize, target_index: usize },
+    Canceled { index: usize },
 }

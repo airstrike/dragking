@@ -34,7 +34,7 @@ use iced::{
     Pixels, Point, Rectangle, Size, Theme, Vector,
 };
 
-use crate::{Action, DragEvent, DropPosition, ItemAnimations};
+use crate::{Action, DragEvent, ItemAnimations};
 
 pub fn column<'a, Message, Theme, Renderer>(
     children: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
@@ -257,7 +257,7 @@ where
         cursor_position: Point,
         layout: Layout<'_>,
         dragged_index: usize,
-    ) -> (usize, DropPosition) {
+    ) -> usize {
         let cursor_y = cursor_position.y;
 
         for (i, child_layout) in layout.children().enumerate() {
@@ -266,33 +266,20 @@ where
             let height = bounds.height;
 
             if cursor_y >= y && cursor_y <= y + height {
-                if i == dragged_index {
-                    // Cursor is over the dragged item itself
-                    return (i, DropPosition::Swap);
-                }
-
-                let thickness = height / 4.0;
-                let top_threshold = y + thickness;
-                let bottom_threshold = y + height - thickness;
-
-                if cursor_y < top_threshold {
-                    // Near the top edge - insert above
-                    return (i, DropPosition::Before);
-                } else if cursor_y > bottom_threshold {
-                    // Near the bottom edge - insert below
-                    return (i + 1, DropPosition::After);
-                } else {
-                    // Middle area - swap
-                    return (i, DropPosition::Swap);
-                }
-            } else if cursor_y < y {
-                // Cursor is above this child
-                return (i, DropPosition::Before);
+                return i;
             }
         }
 
-        // Cursor is below all children
-        (self.children.len(), DropPosition::After)
+        if cursor_y < layout.position().y {
+            // Cursor is above all children
+            0
+        } else if cursor_y > layout.position().y + layout.bounds().height {
+            // Cursor is below all children
+            self.children.len() - 1
+        } else {
+            // Cursor isn't over any children
+            dragged_index
+        }
     }
 }
 
@@ -544,7 +531,7 @@ where
                             // Allocate animation slots just in case
                             animations.with_capacity(self.children.len());
 
-                            let (target_index, _) = self.compute_target_index(
+                            let target_index = self.compute_target_index(
                                 cursor_position,
                                 layout,
                                 index,
@@ -568,36 +555,24 @@ where
                                     continue;
                                 }
 
-                                let target_offset = match target_index
-                                    .cmp(&index)
-                                {
-                                    std::cmp::Ordering::Less
-                                        if i >= target_index && i < index =>
-                                    {
-                                        drag_height
-                                    }
-                                    std::cmp::Ordering::Greater
-                                        if i > index && i <= target_index =>
-                                    {
-                                        -drag_height
-                                    }
-                                    _ => 0.0,
-                                };
+                                let target_offset =
+                                    match target_index.cmp(&index) {
+                                        std::cmp::Ordering::Less
+                                            if (target_index..index)
+                                                .contains(&i) =>
+                                        {
+                                            drag_height
+                                        }
+                                        std::cmp::Ordering::Greater
+                                            if (index + 1..=target_index)
+                                                .contains(&i) =>
+                                        {
+                                            -drag_height
+                                        }
+                                        _ => 0.0,
+                                    };
 
-                                // Only update animations for items that need to move
-                                if target_offset != 0.0 {
-                                    if (target_offset
-                                        - animations.offsets[i].value())
-                                    .abs()
-                                        > 1.0
-                                    {
-                                        animations.offsets[i]
-                                            .go_mut(target_offset);
-                                    }
-                                } else if animations.offsets[i].value() != 0.0 {
-                                    // Return to normal position if previously moved
-                                    animations.offsets[i].go_mut(0.0);
-                                }
+                                animations.offsets[i].go_mut(target_offset);
                             }
 
                             *action = Action::Dragging {
@@ -640,12 +615,11 @@ where
                         if let Some(cursor_position) = cursor.position() {
                             let bounds = layout.bounds();
                             if bounds.contains(cursor_position) {
-                                let (target_index, drop_position) = self
-                                    .compute_target_index(
-                                        cursor_position,
-                                        layout,
-                                        *index,
-                                    );
+                                let target_index = self.compute_target_index(
+                                    cursor_position,
+                                    layout,
+                                    *index,
+                                );
 
                                 let drag_height = if let Some(child_layout) =
                                     layout.children().nth(*index)
@@ -656,42 +630,33 @@ where
                                 };
 
                                 for i in 0..animations.offsets.len() {
+                                    let target_offset = match target_index
+                                        .cmp(index)
+                                    {
+                                        std::cmp::Ordering::Less
+                                            if (target_index..*index)
+                                                .contains(&i) =>
+                                        {
+                                            drag_height
+                                        }
+                                        std::cmp::Ordering::Greater
+                                            if (*index + 1..=target_index)
+                                                .contains(&i) =>
+                                        {
+                                            -drag_height
+                                        }
+                                        _ => 0.0,
+                                    };
+
                                     if i == *index {
                                         // Reset the scale of the dragged item immediately
                                         // for a snappier feel when dropping
                                         animations.offsets[i] =
-                                            Animation::new(0.0);
+                                            Animation::new(target_offset);
                                     } else {
-                                        let offset = match target_index
-                                            .cmp(index)
-                                        {
-                                            std::cmp::Ordering::Less
-                                                if i >= target_index
-                                                    && i < *index =>
-                                            {
-                                                drag_height
-                                            }
-                                            std::cmp::Ordering::Greater
-                                                if i > *index
-                                                    && i <= target_index =>
-                                            {
-                                                -drag_height
-                                            }
-                                            _ => 0.0,
-                                        };
-
                                         // Update animation target for each item
-                                        if offset != 0.0 {
-                                            animations.offsets[i].go_mut(0.0);
-                                        } else {
-                                            let current_value =
-                                                animations.offsets[i].value();
-
-                                            if current_value != 0.0 {
-                                                animations.offsets[i]
-                                                    .go_mut(0.0);
-                                            }
-                                        }
+                                        animations.offsets[i]
+                                            .go_mut(target_offset);
                                     }
                                 }
 
@@ -700,7 +665,6 @@ where
                                         DragEvent::Dropped {
                                             index: *index,
                                             target_index,
-                                            drop_position,
                                         },
                                     ));
                                     shell.capture_event();
@@ -795,7 +759,7 @@ where
 
                 // Determine the target index based on cursor position
                 let target_index = if cursor.position().is_some() {
-                    let (target_index, _) =
+                    let target_index =
                         self.compute_target_index(*last_cursor, layout, *index);
                     target_index.min(child_count - 1)
                 } else {
@@ -907,7 +871,7 @@ where
                 }
                 // Draw a ghost of the dragged item in its would-be position
                 // Get the target index based on current cursor position
-                let (target_index, _) =
+                let target_index =
                     self.compute_target_index(*last_cursor, layout, *index);
 
                 // Instead of using direction to decide signs, we need to use the

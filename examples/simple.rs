@@ -2,7 +2,7 @@ use iced::widget::{column, container, pick_list, row, text};
 use iced::Length::Fill;
 use iced::{Center, Element, Task, Theme};
 
-use dragking::{DragEvent, DropPosition};
+use dragking::DragEvent;
 
 pub fn main() -> iced::Result {
     iced::application("iced — Draggable Widgets", App::update, App::view)
@@ -63,29 +63,10 @@ impl App {
                     DragEvent::Dropped {
                         index,
                         target_index,
-                        drop_position,
                     } => {
-                        // Update self.elements based on index, target_index, drop_position
-                        match drop_position {
-                            DropPosition::Before | DropPosition::After => {
-                                if target_index != index
-                                    && target_index != index + 1
-                                {
-                                    let item = self.elements.remove(index);
-                                    let insert_index = if index < target_index {
-                                        target_index - 1
-                                    } else {
-                                        target_index
-                                    };
-                                    self.elements.insert(insert_index, item);
-                                }
-                            }
-                            DropPosition::Swap => {
-                                if target_index != index {
-                                    self.elements.swap(index, target_index);
-                                }
-                            }
-                        }
+                        // Update self.elements based on index and target_index
+                        let item = self.elements.remove(index);
+                        self.elements.insert(target_index, item);
                     }
                     DragEvent::Canceled { .. } => {
                         // Optionally handle cancel event
