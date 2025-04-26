@@ -18,4 +18,5 @@ iced = { git = "https://github.com/airstrike/iced.git", branch = "master", defau
     "advanced",
     "lazy",
     "wgpu",
+    "tokio",
 ] }
