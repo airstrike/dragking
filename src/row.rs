@@ -589,25 +589,20 @@ where
                         animations.with_capacity(self.children.len());
 
                         if let Some(cursor_position) = cursor.position() {
-                            let bounds = layout.bounds();
-                            if bounds.contains(cursor_position) {
-                                let target_index = self.compute_target_index(
-                                    cursor_position,
-                                    layout,
-                                );
+                            let target_index = self
+                                .compute_target_index(cursor_position, layout);
 
-                                let drag_width = if let Some(child_layout) =
-                                    layout.children().nth(*index)
-                                {
-                                    child_layout.bounds().width + self.spacing
-                                } else {
-                                    0.0
-                                };
+                            let drag_width = if let Some(child_layout) =
+                                layout.children().nth(*index)
+                            {
+                                child_layout.bounds().width + self.spacing
+                            } else {
+                                0.0
+                            };
 
-                                for i in 0..animations.offsets.len() {
-                                    let target_offset = match target_index
-                                        .cmp(index)
-                                    {
+                            for i in 0..animations.offsets.len() {
+                                let target_offset =
+                                    match target_index.cmp(index) {
                                         std::cmp::Ordering::Less
                                             if (target_index..*index)
                                                 .contains(&i) =>
@@ -623,33 +618,29 @@ where
                                         _ => 0.0,
                                     };
 
-                                    if i == *index {
-                                        // Reset the scale of the dragged item immediately
-                                        // for a snappier feel when dropping
-                                        animations.offsets[i] =
-                                            Animation::new(target_offset);
-                                    } else {
-                                        // Update animation target for each item
-                                        animations.offsets[i]
-                                            .go_mut(target_offset);
-                                    }
+                                if i == *index {
+                                    // Reset the scale of the dragged item immediately
+                                    // for a snappier feel when dropping
+                                    animations.offsets[i] =
+                                        Animation::new(target_offset);
+                                } else {
+                                    // Update animation target for each item
+                                    animations.offsets[i].go_mut(target_offset);
                                 }
+                            }
 
-                                if let Some(on_reorder) = &self.on_drag {
-                                    shell.publish(on_reorder(
-                                        DragEvent::Dropped {
-                                            index: *index,
-                                            target_index,
-                                        },
-                                    ));
-                                    shell.capture_event();
-                                }
-                            } else if let Some(on_reorder) = &self.on_drag {
-                                shell.publish(on_reorder(
-                                    DragEvent::Canceled { index: *index },
-                                ));
+                            if let Some(on_reorder) = &self.on_drag {
+                                shell.publish(on_reorder(DragEvent::Dropped {
+                                    index: *index,
+                                    target_index,
+                                }));
                                 shell.capture_event();
                             }
+                        } else if let Some(on_reorder) = &self.on_drag {
+                            shell.publish(on_reorder(DragEvent::Canceled {
+                                index: *index,
+                            }));
+                            shell.capture_event();
                         }
 
                         // Transition to Idle state with animations
