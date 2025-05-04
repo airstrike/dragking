@@ -2,7 +2,7 @@ use iced::widget::{column, container, pick_list, row, text};
 use iced::Length::Fill;
 use iced::{Center, Element, Task, Theme};
 
-use dragking::{DragEvent, DropPosition};
+use dragking::DragEvent;
 
 pub fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
@@ -64,29 +64,10 @@ impl App {
                     DragEvent::Dropped {
                         index,
                         target_index,
-                        drop_position,
                     } => {
-                        // Update self.elements based on index, target_index, drop_position
-                        match drop_position {
-                            DropPosition::Before | DropPosition::After => {
-                                if target_index != index
-                                    && target_index != index + 1
-                                {
-                                    let item = self.elements.remove(index);
-                                    let insert_index = if index < target_index {
-                                        target_index - 1
-                                    } else {
-                                        target_index
-                                    };
-                                    self.elements.insert(insert_index, item);
-                                }
-                            }
-                            DropPosition::Swap => {
-                                if target_index != index {
-                                    self.elements.swap(index, target_index);
-                                }
-                            }
-                        }
+                        // Update self.elements based on index and target_index
+                        let item = self.elements.remove(index);
+                        self.elements.insert(target_index, item);
                     }
                     DragEvent::Canceled { .. } => {
                         // Optionally handle cancel event
@@ -110,11 +91,9 @@ impl App {
                 .spacing(5)
                 .on_drag(Message::Reorder)
                 // For the row example only, show a totally custom Style
-                .style(|theme| dragking::row::Style {
+                .style(|_| dragking::row::Style {
                     scale: 1.5,
-                    moved_item_overlay: iced::Color::BLACK
-                        .scale_alpha(0.75)
-                        .into(),
+                    moved_item_overlay: iced::Color::BLACK.scale_alpha(0.75),
                     ghost_background: iced::color![170, 0, 0]
                         .scale_alpha(0.25)
                         .into(),
@@ -123,7 +102,6 @@ impl App {
                         width: 0.0,
                         radius: 5.0.into(),
                     },
-                    ..dragking::row::default(theme)
                 })
                 .align_y(Center)
                 .into(),

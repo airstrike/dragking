@@ -4,7 +4,7 @@ use iced::widget::{
 };
 use iced::{Center, Element, Fill, Task, Theme};
 
-use dragking::{DragEvent, DropPosition};
+use dragking::DragEvent;
 
 pub fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
@@ -117,31 +117,16 @@ impl App {
             Message::SwitchMode(mode) => {
                 self.mode = mode;
             }
-            Message::Reorder(event) => match event {
-                DragEvent::Dropped {
+            Message::Reorder(event) => {
+                if let DragEvent::Dropped {
                     index,
                     target_index,
-                    drop_position,
-                } => match drop_position {
-                    DropPosition::Before | DropPosition::After => {
-                        if target_index != index && target_index != index + 1 {
-                            let item = self.widgets.remove(index);
-                            let insert_index = if index < target_index {
-                                target_index - 1
-                            } else {
-                                target_index
-                            };
-                            self.widgets.insert(insert_index, item);
-                        }
-                    }
-                    DropPosition::Swap => {
-                        if target_index != index {
-                            self.widgets.swap(index, target_index);
-                        }
-                    }
-                },
-                _ => {}
-            },
+                } = event
+                {
+                    let item = self.widgets.remove(index);
+                    self.widgets.insert(target_index, item);
+                }
+            }
             Message::SliderChanged(value) => {
                 self.slider_value = value;
             }

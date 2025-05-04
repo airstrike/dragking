@@ -45,6 +45,12 @@ pub(crate) struct ItemAnimations {
 }
 
 impl ItemAnimations {
+    pub fn zero(&mut self) {
+        for animation in &mut self.offsets {
+            *animation = Animation::new(0.0);
+        }
+    }
+
     pub fn is_animating(&self, now: Instant) -> bool {
         self.offsets.iter().any(|anim| anim.is_animating(now))
     }
@@ -56,24 +62,9 @@ impl ItemAnimations {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum DropPosition {
-    Before,
-    Swap,
-    After,
-}
-
 #[derive(Debug, Clone)]
 pub enum DragEvent {
-    Picked {
-        index: usize,
-    },
-    Dropped {
-        index: usize,
-        target_index: usize,
-        drop_position: DropPosition,
-    },
-    Canceled {
-        index: usize,
-    },
+    Picked { index: usize },
+    Dropped { index: usize, target_index: usize },
+    Canceled { index: usize },
 }
