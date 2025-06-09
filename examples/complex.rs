@@ -253,6 +253,7 @@ fn handle(_theme: &Theme) -> rule::Style {
         radius: 0.into(),
         color: iced::Color::BLACK.scale_alpha(0.2),
         fill_mode: rule::FillMode::Full,
+        snap: true,
     }
 }
 

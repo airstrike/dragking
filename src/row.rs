@@ -527,7 +527,8 @@ where
                                 // Special case for the picked item - animate scale to 1.0
                                 if i == index {
                                     // Animate the picked item's scale to 1.0
-                                    animations.offsets[i].go_mut(1.0);
+                                    animations.offsets[i]
+                                        .go_mut(1.0, Instant::now());
                                     continue;
                                 }
 
@@ -548,7 +549,8 @@ where
                                         _ => 0.0,
                                     };
 
-                                animations.offsets[i].go_mut(target_offset);
+                                animations.offsets[i]
+                                    .go_mut(target_offset, Instant::now());
                             }
 
                             *action = Action::Dragging {
@@ -625,7 +627,8 @@ where
                                         Animation::new(target_offset);
                                 } else {
                                     // Update animation target for each item
-                                    animations.offsets[i].go_mut(target_offset);
+                                    animations.offsets[i]
+                                        .go_mut(target_offset, Instant::now());
                                 }
                             }
 
@@ -965,7 +968,7 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
         viewport: &Rectangle,
         translation: Vector,
@@ -1165,7 +1168,7 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
         viewport: &Rectangle,
         translation: Vector,
