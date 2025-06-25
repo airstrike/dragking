@@ -5,13 +5,13 @@ use iced::{Center, Element, Task, Theme};
 use dragking::{DragEvent, DropPosition};
 
 pub fn main() -> iced::Result {
-    iced::application("iced — Draggable Widgets", App::update, App::view)
+    iced::application(App::new, App::update, App::view)
         .window(iced::window::Settings {
             size: iced::Size::new(400.0, 400.0),
             ..Default::default()
         })
         .theme(App::theme)
-        .run_with(App::new)
+        .run()
 }
 
 #[derive(Default)]
@@ -113,7 +113,7 @@ impl App {
                     moved_item_overlay: iced::Color::BLACK
                         .scale_alpha(0.25)
                         .into(),
-                    ghost_background: iced::color![170.0, 0.0, 0.0]
+                    ghost_background: iced::color![170, 0, 0]
                         .scale_alpha(0.25)
                         .into(),
                     ghost_border: iced::Border {
