@@ -26,14 +26,14 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::widget::{tree, Operation, Tree, Widget};
 use iced::advanced::{overlay, renderer, Clipboard, Shell};
 use iced::alignment::{self, Alignment};
-use iced::event::{self, Event};
+use iced::event::Event;
 use iced::{mouse, Transformation};
 use iced::{
     Background, Border, Color, Element, Length, Padding, Pixels, Point,
     Rectangle, Size, Theme, Vector,
 };
 
-use crate::{Action, DragEvent, DropPosition};
+use crate::{Action, DragDirection, DragEvent, DropPosition};
 
 pub fn column<'a, Message, Theme, Renderer>(
     children: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
@@ -82,6 +82,7 @@ where
     align: Alignment,
     clip: bool,
     deadband_zone: f32,
+    drag_direction: DragDirection,
     children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_drag: Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
     class: Theme::Class<'a>,
@@ -130,6 +131,7 @@ where
             align: Alignment::Start,
             clip: false,
             deadband_zone: DRAG_DEADBAND_DISTANCE,
+            drag_direction: DragDirection::Unrestricted,
             children,
             class: Theme::default(),
             on_drag: None,
@@ -186,6 +188,12 @@ where
     /// Sets the drag deadband zone of the [`Column`].
     pub fn deadband_zone(mut self, deadband_zone: f32) -> Self {
         self.deadband_zone = deadband_zone;
+        self
+    }
+
+    /// Sets the drag direction of the [`Column`].
+    pub fn drag_direction(mut self, drag_direction: DragDirection) -> Self {
+        self.drag_direction = drag_direction;
         self
     }
 
@@ -391,19 +399,17 @@ where
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        let mut event_status = event::Status::Ignored;
-
+    ) {
         let action = tree.state.downcast_mut::<Action>();
 
         match event {
@@ -417,7 +423,8 @@ where
                                 index,
                                 origin: cursor_position,
                             };
-                            event_status = event::Status::Captured;
+                            shell.capture_event();
+                            shell.request_redraw();
                             break;
                         }
                     }
@@ -441,18 +448,29 @@ where
                                         DragEvent::Picked { index },
                                     ));
                                 }
-                                event_status = event::Status::Captured;
+                                shell.capture_event();
+                                shell.request_redraw();
                             }
                         }
                     }
                     Action::Dragging { origin, index, .. } => {
                         if let Some(cursor_position) = cursor.position() {
+                            let last_cursor = match self.drag_direction {
+                                DragDirection::Horizontal => {
+                                    Point::new(cursor_position.x, origin.y)
+                                }
+                                DragDirection::Vertical => {
+                                    Point::new(origin.x, cursor_position.y)
+                                }
+                                DragDirection::Unrestricted => cursor_position,
+                            };
                             *action = Action::Dragging {
-                                last_cursor: cursor_position,
+                                last_cursor,
                                 origin,
                                 index,
                             };
-                            event_status = event::Status::Captured;
+                            shell.capture_event();
+                            shell.request_redraw();
                         }
                     }
                     _ => {}
@@ -479,13 +497,16 @@ where
                                             drop_position,
                                         },
                                     ));
-                                    event_status = event::Status::Captured;
+                                    shell.capture_event();
+                                    shell.request_redraw();
                                 }
                             } else if let Some(on_reorder) = &self.on_drag {
                                 shell.publish(on_reorder(
                                     DragEvent::Canceled { index },
                                 ));
-                                event_status = event::Status::Captured;
+
+                                shell.capture_event();
+                                shell.request_redraw();
                             }
                         }
                         *action = Action::Idle;
@@ -500,26 +521,16 @@ where
             _ => {}
         }
 
-        let child_status = self
-            .children
+        self.children
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    shell,
+            .for_each(|((child, state), layout)| {
+                child.as_widget_mut().update(
+                    state, event, layout, cursor, renderer, clipboard, shell,
                     viewport,
-                )
-            })
-            .fold(event::Status::Ignored, event::Status::merge);
-
-        event::Status::merge(event_status, child_status)
+                );
+            });
     }
 
     fn mouse_interaction(
@@ -697,8 +708,9 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         overlay::from_children(
@@ -706,6 +718,7 @@ where
             tree,
             layout,
             renderer,
+            viewport,
             translation,
         )
     }

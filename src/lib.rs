@@ -26,6 +26,13 @@ pub enum DropPosition {
     After,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DragDirection {
+    Horizontal,
+    Vertical,
+    Unrestricted,
+}
+
 #[derive(Debug, Clone)]
 pub enum DragEvent {
     Picked {

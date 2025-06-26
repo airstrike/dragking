@@ -5,13 +5,13 @@ use iced::{Center, Element, Task, Theme};
 use dragking::{DragEvent, DropPosition};
 
 pub fn main() -> iced::Result {
-    iced::application("iced — Draggable Widgets", App::update, App::view)
+    iced::application(App::new, App::update, App::view)
         .window(iced::window::Settings {
             size: iced::Size::new(400.0, 400.0),
             ..Default::default()
         })
         .theme(App::theme)
-        .run_with(App::new)
+        .run()
 }
 
 #[derive(Default)]
@@ -103,9 +103,11 @@ impl App {
                 // For the column example only, set the deadband_zone to zero
                 .deadband_zone(0.0)
                 .on_drag(Message::Reorder)
+                .drag_direction(dragking::DragDirection::Vertical)
                 .align_x(Center)
                 .into(),
             Mode::Row => dragking::row(items.collect::<Vec<_>>())
+                .deadband_zone(0.0)
                 .spacing(5)
                 // For the row example only, show a totally custom Style
                 .style(|theme| dragking::row::Style {
@@ -113,7 +115,7 @@ impl App {
                     moved_item_overlay: iced::Color::BLACK
                         .scale_alpha(0.25)
                         .into(),
-                    ghost_background: iced::color![170.0, 0.0, 0.0]
+                    ghost_background: iced::color![170, 0, 0]
                         .scale_alpha(0.25)
                         .into(),
                     ghost_border: iced::Border {
@@ -123,6 +125,7 @@ impl App {
                     },
                     ..dragking::row::default(theme)
                 })
+                .drag_direction(dragking::DragDirection::Horizontal)
                 .align_y(Center)
                 .on_drag(Message::Reorder)
                 .into(),
