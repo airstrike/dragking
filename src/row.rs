@@ -33,7 +33,7 @@ use iced::{
     Rectangle, Size, Theme, Vector,
 };
 
-use crate::{Action, DragEvent, DropPosition};
+use crate::{Action, DragDirection, DragEvent, DropPosition};
 
 pub fn row<'a, Message, Theme, Renderer>(
     children: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
@@ -81,6 +81,7 @@ where
     align: Alignment,
     clip: bool,
     deadband_zone: f32,
+    drag_direction: DragDirection,
     children: Vec<Element<'a, Message, Theme, Renderer>>,
     on_drag: Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
     class: Theme::Class<'a>,
@@ -128,6 +129,7 @@ where
             align: Alignment::Start,
             clip: false,
             deadband_zone: DRAG_DEADBAND_DISTANCE,
+            drag_direction: DragDirection::Unrestricted,
             children,
             class: Theme::default(),
             on_drag: None,
@@ -178,6 +180,12 @@ where
     /// Sets the drag deadband zone of the [`Row`].
     pub fn deadband_zone(mut self, deadband_zone: f32) -> Self {
         self.deadband_zone = deadband_zone;
+        self
+    }
+
+    /// Sets the drag direction of the [`Row`].
+    pub fn drag_direction(mut self, drag_direction: DragDirection) -> Self {
+        self.drag_direction = drag_direction;
         self
     }
 
@@ -444,8 +452,17 @@ where
                     }
                     Action::Dragging { origin, index, .. } => {
                         if let Some(cursor_position) = cursor.position() {
+                            let last_cursor = match self.drag_direction {
+                                DragDirection::Horizontal => {
+                                    Point::new(cursor_position.x, origin.y)
+                                }
+                                DragDirection::Vertical => {
+                                    Point::new(origin.x, cursor_position.y)
+                                }
+                                DragDirection::Unrestricted => cursor_position,
+                            };
                             *action = Action::Dragging {
-                                last_cursor: cursor_position,
+                                last_cursor,
                                 origin,
                                 index,
                             };

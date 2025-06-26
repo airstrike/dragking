@@ -103,9 +103,11 @@ impl App {
                 // For the column example only, set the deadband_zone to zero
                 .deadband_zone(0.0)
                 .on_drag(Message::Reorder)
+                .drag_direction(dragking::DragDirection::Vertical)
                 .align_x(Center)
                 .into(),
             Mode::Row => dragking::row(items.collect::<Vec<_>>())
+                .deadband_zone(0.0)
                 .spacing(5)
                 // For the row example only, show a totally custom Style
                 .style(|theme| dragking::row::Style {
@@ -123,6 +125,7 @@ impl App {
                     },
                     ..dragking::row::default(theme)
                 })
+                .drag_direction(dragking::DragDirection::Horizontal)
                 .align_y(Center)
                 .on_drag(Message::Reorder)
                 .into(),
