@@ -1,5 +1,5 @@
-use iced::widget::{column, container, pick_list, row, text};
 use iced::Length::Fill;
+use iced::widget::{column, container, pick_list, row, text};
 use iced::{Center, Element, Task, Theme};
 
 use dragking::DragEvent;
@@ -77,7 +77,7 @@ impl App {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let items = self.elements.iter().map(|label| pickme(label));
         let drag: Element<'_, Message> = match self.mode {
             Mode::Column => dragking::column(items.collect::<Vec<_>>())

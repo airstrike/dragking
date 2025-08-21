@@ -142,7 +142,7 @@ impl App {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let items = || {
             self.widgets.iter().map(|widget| match widget {
                 WidgetType::Slider => Element::from(
@@ -249,7 +249,6 @@ impl App {
 
 fn handle(_theme: &Theme) -> rule::Style {
     rule::Style {
-        width: 5,
         radius: 0.into(),
         color: iced::Color::BLACK.scale_alpha(0.2),
         fill_mode: rule::FillMode::Full,

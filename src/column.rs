@@ -23,15 +23,15 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use iced::advanced::layout::{self, Layout};
-use iced::advanced::widget::{tree, Operation, Tree, Widget};
-use iced::advanced::{overlay, renderer, Clipboard, Shell};
+use iced::advanced::widget::{Operation, Tree, Widget, tree};
+use iced::advanced::{Clipboard, Shell, overlay, renderer};
 use iced::alignment::{self, Alignment};
 use iced::time::Instant;
-use iced::{mouse, Transformation};
 use iced::{
     Animation, Background, Border, Color, Element, Event, Length, Padding,
     Pixels, Point, Rectangle, Size, Theme, Vector,
 };
+use iced::{Transformation, mouse};
 
 use crate::{Action, DragEvent, ItemAnimations};
 
@@ -329,8 +329,8 @@ where
         self.children.iter().map(Tree::new).collect()
     }
 
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(&self.children);
+    fn diff(&mut self, tree: &mut Tree) {
+        tree.diff_children(&mut self.children);
 
         let action = tree.state.downcast_mut::<Action>();
 
@@ -352,7 +352,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
@@ -368,13 +368,13 @@ where
             self.padding,
             self.spacing,
             self.align,
-            &self.children,
+            &mut self.children,
             &mut tree.children,
         )
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
@@ -382,12 +382,12 @@ where
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.children
-                .iter()
+                .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
@@ -585,7 +585,7 @@ where
                 match action {
                     Action::Dragging {
                         index,
-                        ref mut animations,
+                        animations,
                         now,
                         ..
                     } => {

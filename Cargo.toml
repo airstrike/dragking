@@ -1,7 +1,7 @@
 [package]
 name = "dragking"
-version = "0.1.0"
-edition = "2021"
+version = "0.1.1"
+edition = "2024"
 authors = ["Andy Terra <spam@andyterra.com>"]
 description = "A very simple implementation of drag and drop for `iced`'s `Row` and `Column` widgets"
 license = "MIT"
@@ -11,12 +11,13 @@ repository = "https://github.com/airstrike/dragking"
 iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", default-features = false, features = [
     "advanced",
     "wgpu",
+    "tokio",
+
 ] }
 
 [dev-dependencies]
 iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", default-features = false, features = [
     "advanced",
-    "lazy",
     "wgpu",
     "tokio",
 ] }
