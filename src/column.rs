@@ -329,8 +329,8 @@ where
         self.children.iter().map(Tree::new).collect()
     }
 
-    fn diff(&mut self, tree: &mut Tree) {
-        tree.diff_children(&mut self.children);
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(&self.children);
 
         let action = tree.state.downcast_mut::<Action>();
 
