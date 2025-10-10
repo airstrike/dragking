@@ -1,5 +1,5 @@
-use iced::widget::{column, container, pick_list, row, text};
 use iced::Length::Fill;
+use iced::widget::{checkbox, column, container, pick_list, row, space, text};
 use iced::{Center, Element, Task, Theme};
 
 use dragking::DragEvent;
@@ -19,6 +19,7 @@ pub fn main() -> iced::Result {
 struct App {
     elements: Vec<String>,
     mode: Mode,
+    allow_dragging: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -32,6 +33,7 @@ enum Mode {
 enum Message {
     Reorder(DragEvent),
     SwitchMode(Mode),
+    ToggleDragging(bool),
 }
 
 impl App {
@@ -45,6 +47,7 @@ impl App {
                     "Date".to_string(),
                     "Elderberry".to_string(),
                 ],
+                allow_dragging: true,
                 ..Default::default()
             },
             Task::none(),
@@ -74,22 +77,26 @@ impl App {
                     }
                 }
             }
+            Message::ToggleDragging(boolean) => {
+                self.allow_dragging = boolean;
+            }
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let items = self.elements.iter().map(|label| pickme(label));
         let drag: Element<'_, Message> = match self.mode {
             Mode::Column => dragking::column(items.collect::<Vec<_>>())
                 .spacing(5)
                 // For the column example only, set the deadband_zone to zero
                 .deadband_zone(0.0)
-                .on_drag(Message::Reorder)
+                .on_drag_maybe(self.allow_dragging.then_some(Message::Reorder))
+                // Alternatively use `on_drag` to always receive drag events
+                // .on_drag(Message::Reorder)
                 .align_x(Center)
                 .into(),
             Mode::Row => dragking::row(items.collect::<Vec<_>>())
                 .spacing(5)
-                .on_drag(Message::Reorder)
                 // For the row example only, show a totally custom Style
                 .style(|_| dragking::row::Style {
                     scale: 1.5,
@@ -104,19 +111,30 @@ impl App {
                     },
                 })
                 .align_y(Center)
+                .on_drag_maybe(self.allow_dragging.then_some(Message::Reorder))
+                // Alternatively use `on_drag` to always receive drag events
+                // .on_drag(Message::Reorder).
                 .into(),
         };
+
+        let toggle = checkbox("Enable dragging", self.allow_dragging)
+            .text_line_height(1.0)
+            .on_toggle(Message::ToggleDragging);
 
         container(
             column![
                 row![
-                    text("Drag items around!").width(Fill),
+                    toggle,
+                    space::horizontal(),
+                    text("Drag items around!"),
+                    space::horizontal(),
                     pick_list(
                         [Mode::Row, Mode::Column],
                         Some(&self.mode),
                         Message::SwitchMode,
                     )
-                ],
+                ]
+                .align_y(Center),
                 container(drag)
                     .padding(20)
                     .width(Fill)
