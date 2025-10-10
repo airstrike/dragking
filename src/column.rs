@@ -23,15 +23,15 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use iced::advanced::layout::{self, Layout};
-use iced::advanced::widget::{tree, Operation, Tree, Widget};
-use iced::advanced::{overlay, renderer, Clipboard, Shell};
+use iced::advanced::widget::{Operation, Tree, Widget, tree};
+use iced::advanced::{Clipboard, Shell, overlay, renderer};
 use iced::alignment::{self, Alignment};
 use iced::time::Instant;
-use iced::{mouse, Transformation};
 use iced::{
     Animation, Background, Border, Color, Element, Event, Length, Padding,
     Pixels, Point, Rectangle, Size, Theme, Vector,
 };
+use iced::{Transformation, mouse};
 
 use crate::{Action, DragEvent, ItemAnimations};
 
@@ -250,6 +250,15 @@ where
         self
     }
 
+    /// The message produced by the [`Column`] when a child is dragged, if Some.
+    pub fn on_drag_maybe(
+        mut self,
+        on_reorder: Option<impl Fn(DragEvent) -> Message + 'a>,
+    ) -> Self {
+        self.on_drag = on_reorder.map(|f| Box::new(f) as _);
+        self
+    }
+
     // Computes the index and position where a dragged item should be dropped.
     fn compute_target_index(
         &self,
@@ -423,122 +432,128 @@ where
             return;
         }
 
-        match &event {
-            Event::Window(iced::window::Event::RedrawRequested(now)) => {
-                match action {
-                    Action::Idle {
-                        now: current_now,
-                        animations,
-                    } => {
-                        *current_now = Some(*now);
+        if let Some(on_reorder) = &self.on_drag {
+            match &event {
+                Event::Window(iced::window::Event::RedrawRequested(now)) => {
+                    match action {
+                        Action::Idle {
+                            now: current_now,
+                            animations,
+                        } => {
+                            *current_now = Some(*now);
 
-                        if animations.is_animating(*now) {
-                            shell.request_redraw();
+                            if animations.is_animating(*now) {
+                                shell.request_redraw();
+                            }
+                        }
+                        Action::Picking {
+                            now: current_now, ..
+                        }
+                        | Action::Dragging {
+                            now: current_now, ..
+                        } => {
+                            *current_now = *now;
+                            shell.request_redraw(); // Always redraw during picking or dragging
                         }
                     }
-                    Action::Picking {
-                        now: current_now, ..
-                    }
-                    | Action::Dragging {
-                        now: current_now, ..
-                    } => {
-                        *current_now = *now;
-                        shell.request_redraw(); // Always redraw during picking or dragging
+                }
+                Event::Mouse(mouse::Event::ButtonPressed(
+                    mouse::Button::Left,
+                )) => {
+                    if let Some(cursor_position) =
+                        cursor.position_over(layout.bounds())
+                    {
+                        // Get animations from previous state
+                        let animations = match action {
+                            Action::Idle { animations, .. } => animations,
+                            Action::Picking { animations, .. } => animations,
+                            Action::Dragging { animations, .. } => animations,
+                        };
+                        animations.zero();
+
+                        let index =
+                            self.compute_target_index(cursor_position, layout);
+
+                        *action = Action::Picking {
+                            index,
+                            origin: cursor_position,
+                            now: Instant::now(),
+                            animations: std::mem::take(animations),
+                        };
+
+                        shell.capture_event();
+                        shell.request_redraw();
                     }
                 }
-            }
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if let Some(cursor_position) =
-                    cursor.position_over(layout.bounds())
-                {
-                    // Get animations from previous state
-                    let animations = match action {
-                        Action::Idle { animations, .. } => animations,
-                        Action::Picking { animations, .. } => animations,
-                        Action::Dragging { animations, .. } => animations,
-                    };
-                    animations.zero();
+                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                    match *action {
+                        Action::Picking {
+                            index,
+                            origin,
+                            now,
+                            ref mut animations,
+                        } => {
+                            if let Some(cursor_position) = cursor.position() {
+                                if cursor_position.distance(origin)
+                                    > self.deadband_zone
+                                {
+                                    // Start dragging
+                                    *action = Action::Dragging {
+                                        index,
+                                        origin,
+                                        last_cursor: cursor_position,
+                                        now,
+                                        animations: std::mem::take(animations),
+                                    };
+                                    shell.request_redraw();
 
-                    let index =
-                        self.compute_target_index(cursor_position, layout);
-
-                    *action = Action::Picking {
-                        index,
-                        origin: cursor_position,
-                        now: Instant::now(),
-                        animations: std::mem::take(animations),
-                    };
-
-                    shell.capture_event();
-                    shell.request_redraw();
-                }
-            }
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                match *action {
-                    Action::Picking {
-                        index,
-                        origin,
-                        now,
-                        ref mut animations,
-                    } => {
-                        if let Some(cursor_position) = cursor.position() {
-                            if cursor_position.distance(origin)
-                                > self.deadband_zone
-                            {
-                                // Start dragging
-                                *action = Action::Dragging {
-                                    index,
-                                    origin,
-                                    last_cursor: cursor_position,
-                                    now,
-                                    animations: std::mem::take(animations),
-                                };
-                                shell.request_redraw();
-                                if let Some(on_reorder) = &self.on_drag {
                                     shell.publish(on_reorder(
                                         DragEvent::Picked { index },
                                     ));
+
+                                    shell.capture_event();
                                 }
-                                shell.capture_event();
                             }
                         }
-                    }
-                    Action::Dragging {
-                        origin,
-                        index,
-                        now,
-                        ref mut animations,
-                        ..
-                    } => {
-                        shell.request_redraw();
-                        if let Some(cursor_position) = cursor.position() {
-                            // Allocate animation slots just in case
-                            animations.with_capacity(self.children.len());
+                        Action::Dragging {
+                            origin,
+                            index,
+                            now,
+                            ref mut animations,
+                            ..
+                        } => {
+                            shell.request_redraw();
+                            if let Some(cursor_position) = cursor.position() {
+                                // Allocate animation slots just in case
+                                animations.with_capacity(self.children.len());
 
-                            let target_index = self
-                                .compute_target_index(cursor_position, layout);
+                                let target_index = self.compute_target_index(
+                                    cursor_position,
+                                    layout,
+                                );
 
-                            // Calculate height of the dragged item
-                            let drag_height = if let Some(child_layout) =
-                                layout.children().nth(index)
-                            {
-                                child_layout.bounds().height + self.spacing
-                            } else {
-                                0.0
-                            };
+                                // Calculate height of the dragged item
+                                let drag_height = if let Some(child_layout) =
+                                    layout.children().nth(index)
+                                {
+                                    child_layout.bounds().height + self.spacing
+                                } else {
+                                    0.0
+                                };
 
-                            // Update animations for items that need to move
-                            for i in 0..animations.offsets.len() {
-                                // Special case for the picked item - animate scale to 1.0
-                                if i == index {
-                                    // Animate the picked item's scale to 1.0
-                                    animations.offsets[i]
-                                        .go_mut(1.0, Instant::now());
-                                    continue;
-                                }
+                                // Update animations for items that need to move
+                                for i in 0..animations.offsets.len() {
+                                    // Special case for the picked item - animate scale to 1.0
+                                    if i == index {
+                                        // Animate the picked item's scale to 1.0
+                                        animations.offsets[i]
+                                            .go_mut(1.0, Instant::now());
+                                        continue;
+                                    }
 
-                                let target_offset =
-                                    match target_index.cmp(&index) {
+                                    let target_offset = match target_index
+                                        .cmp(&index)
+                                    {
                                         std::cmp::Ordering::Less
                                             if (target_index..index)
                                                 .contains(&i) =>
@@ -554,62 +569,65 @@ where
                                         _ => 0.0,
                                     };
 
-                                animations.offsets[i]
-                                    .go_mut(target_offset, Instant::now());
-                            }
+                                    animations.offsets[i]
+                                        .go_mut(target_offset, Instant::now());
+                                }
 
-                            *action = Action::Dragging {
-                                last_cursor: cursor_position,
-                                origin,
-                                index,
-                                now,
-                                animations: std::mem::take(animations),
-                            };
-                            shell.capture_event();
-                        } else {
-                            if let Some(on_reorder) = &self.on_drag {
+                                *action = Action::Dragging {
+                                    last_cursor: cursor_position,
+                                    origin,
+                                    index,
+                                    now,
+                                    animations: std::mem::take(animations),
+                                };
+                                shell.capture_event();
+                            } else {
                                 shell.publish(on_reorder(
                                     DragEvent::Canceled { index },
                                 ));
+
+                                *action = Action::Idle {
+                                    now: Some(now),
+                                    animations: std::mem::take(animations),
+                                };
                             }
-
-                            *action = Action::Idle {
-                                now: Some(now),
-                                animations: std::mem::take(animations),
-                            };
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
-            }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                match action {
-                    Action::Dragging {
-                        index,
-                        animations,
-                        now,
-                        ..
-                    } => {
-                        let current_now = *now;
+                Event::Mouse(mouse::Event::ButtonReleased(
+                    mouse::Button::Left,
+                )) => {
+                    match action {
+                        Action::Dragging {
+                            index,
+                            animations,
+                            now,
+                            ..
+                        } => {
+                            let current_now = *now;
 
-                        // Allocate animation slots just in case
-                        animations.with_capacity(self.children.len());
+                            // Allocate animation slots just in case
+                            animations.with_capacity(self.children.len());
 
-                        if let Some(cursor_position) = cursor.position() {
-                            let target_index = self
-                                .compute_target_index(cursor_position, layout);
+                            if let Some(cursor_position) = cursor.position() {
+                                let target_index = self.compute_target_index(
+                                    cursor_position,
+                                    layout,
+                                );
 
-                            let drag_height = if let Some(child_layout) =
-                                layout.children().nth(*index)
-                            {
-                                child_layout.bounds().height + self.spacing
-                            } else {
-                                0.0
-                            };
+                                let drag_height = if let Some(child_layout) =
+                                    layout.children().nth(*index)
+                                {
+                                    child_layout.bounds().height + self.spacing
+                                } else {
+                                    0.0
+                                };
 
-                            for i in 0..animations.offsets.len() {
-                                let target_offset =
-                                    match target_index.cmp(index) {
+                                for i in 0..animations.offsets.len() {
+                                    let target_offset = match target_index
+                                        .cmp(index)
+                                    {
                                         std::cmp::Ordering::Less
                                             if (target_index..*index)
                                                 .contains(&i) =>
@@ -625,52 +643,54 @@ where
                                         _ => 0.0,
                                     };
 
-                                if i == *index {
-                                    // Reset the scale of the dragged item immediately
-                                    // for a snappier feel when dropping
-                                    animations.offsets[i] =
-                                        Animation::new(target_offset);
-                                } else {
-                                    // Update animation target for each item
-                                    animations.offsets[i]
-                                        .go_mut(target_offset, Instant::now());
+                                    if i == *index {
+                                        // Reset the scale of the dragged item immediately
+                                        // for a snappier feel when dropping
+                                        animations.offsets[i] =
+                                            Animation::new(target_offset);
+                                    } else {
+                                        // Update animation target for each item
+                                        animations.offsets[i].go_mut(
+                                            target_offset,
+                                            Instant::now(),
+                                        );
+                                    }
                                 }
-                            }
 
-                            if let Some(on_reorder) = &self.on_drag {
                                 shell.publish(on_reorder(DragEvent::Dropped {
                                     index: *index,
                                     target_index,
                                 }));
+
+                                shell.capture_event();
+                            } else {
+                                shell.publish(on_reorder(
+                                    DragEvent::Canceled { index: *index },
+                                ));
                                 shell.capture_event();
                             }
-                        } else if let Some(on_reorder) = &self.on_drag {
-                            shell.publish(on_reorder(DragEvent::Canceled {
-                                index: *index,
-                            }));
-                            shell.capture_event();
-                        }
 
-                        // Transition to Idle state with animations
-                        *action = Action::Idle {
-                            now: Some(current_now),
-                            animations: std::mem::take(animations),
-                        };
+                            // Transition to Idle state with animations
+                            *action = Action::Idle {
+                                now: Some(current_now),
+                                animations: std::mem::take(animations),
+                            };
+                        }
+                        Action::Picking {
+                            animations, now, ..
+                        } => {
+                            // Did not move enough to start dragging
+                            *action = Action::Idle {
+                                now: Some(*now),
+                                animations: std::mem::take(animations),
+                            };
+                        }
+                        _ => {}
                     }
-                    Action::Picking {
-                        animations, now, ..
-                    } => {
-                        // Did not move enough to start dragging
-                        *action = Action::Idle {
-                            now: Some(*now),
-                            animations: std::mem::take(animations),
-                        };
-                    }
-                    _ => {}
+                    shell.request_redraw();
                 }
-                shell.request_redraw();
+                _ => {}
             }
-            _ => {}
         }
     }
 
