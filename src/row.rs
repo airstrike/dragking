@@ -351,7 +351,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
@@ -365,26 +365,27 @@ where
             self.padding,
             self.spacing,
             self.align,
-            &self.children,
+            &mut self.children,
             &mut tree.children,
         )
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
             self.children
-                .iter()
+                .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
@@ -581,7 +582,7 @@ where
                 match action {
                     Action::Dragging {
                         index,
-                        ref mut animations,
+                        animations,
                         now,
                         ..
                     } => {
@@ -1029,7 +1030,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
@@ -1070,8 +1071,8 @@ where
             }
         };
 
-        for (i, child) in self.row.children.iter().enumerate() {
-            let node = child.as_widget().layout(
+        for (i, child) in self.row.children.iter_mut().enumerate() {
+            let node = child.as_widget_mut().layout(
                 &mut tree.children[i],
                 renderer,
                 &limits,
@@ -1114,7 +1115,7 @@ where
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,

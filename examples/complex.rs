@@ -1,6 +1,6 @@
 use iced::widget::{
-    button, column, container, horizontal_rule, pick_list, responsive, row,
-    rule, slider, text, toggler, vertical_rule,
+    button, column, container, pick_list, responsive, row, rule, slider, text,
+    toggler,
 };
 use iced::{Center, Element, Fill, Task, Theme};
 
@@ -142,7 +142,7 @@ impl App {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let items = || {
             self.widgets.iter().map(|widget| match widget {
                 WidgetType::Slider => Element::from(
@@ -177,7 +177,7 @@ impl App {
         let drag: Element<'_, Message> = match self.mode {
             Mode::Column => responsive(move |size| {
                 dragking::column(items().map(|item| {
-                    row![vertical_rule(5).style(handle), item]
+                    row![rule::vertical(5).style(handle), item]
                         .align_y(Center)
                         .spacing(5)
                         .width(size.width)
@@ -192,7 +192,7 @@ impl App {
             .into(),
             Mode::Row => responsive(move |size| {
                 dragking::row(items().map(|item| {
-                    column![horizontal_rule(5).style(handle), item]
+                    column![rule::horizontal(5).style(handle), item]
                         .height(size.height)
                         .align_x(Center)
                         .spacing(5)
@@ -249,7 +249,6 @@ impl App {
 
 fn handle(_theme: &Theme) -> rule::Style {
     rule::Style {
-        width: 5,
         radius: 0.into(),
         color: iced::Color::BLACK.scale_alpha(0.2),
         fill_mode: rule::FillMode::Full,
